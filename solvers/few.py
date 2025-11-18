@@ -173,7 +173,7 @@ def main():
     adj = build_split_graph(n, edges, R_idx_set, force_directed=args.force_directed)
 
     s_start = 2*s_idx + 1   # start from s_out (after paying cost if s is red)
-    t_goal = 2*t_idx        # reach t_in (before paying t's cost)
+    t_goal = 2*t_idx + 1    # reach t_out (after paying t's cost, so t is counted if red)
     best = dijkstra(adj, s_start, t_goal)
 
     if best == float("inf"):
