@@ -17,10 +17,10 @@ Behavior:
 - By default the script honors per-edge directionality found in the file.
 - You can force all edges to be treated as directed with --force-directed.
 
-Two implementations included:
-1) default: BFS with state (seenRed = 0/1) to guarantee path simplicity (no repeated vertices).
-2) alternate (--two-bfs): run BFS from s to all reds and BFS from t on reversed graph (directed case) or normal graph (undirected)
-   and check for reachable red that lies on s->red and red->t paths. This is simpler but the stateful BFS is safer.
+Implementation:
+BFS with state (seenRed = 0/1) to guarantee path simplicity (no repeated vertices).
+The state space is (vertex, seenRedFlag) where seenRedFlag indicates whether
+we've encountered at least one red vertex on the path so far.
 
 Output:
 - Prints "yes" and a sample path (vertex names) if one exists.
@@ -152,43 +152,11 @@ def bfs_seen_red(n, adj, s, t, R) -> Tuple[bool, List[int]]:
                 q.append(state)
     return False, []
 
-def two_bfs_reach(n, adj, rev, s, t, R):
-    """Two BFS approach (works fine for undirected; for directed uses rev)."""
-    # BFS from s
-    q = deque([s])
-    vis_s = [False]*n
-    vis_s[s] = True
-    while q:
-        v = q.popleft()
-        for u in adj[v]:
-            if not vis_s[u]:
-                vis_s[u] = True
-                q.append(u)
-
-    # BFS from t on reverse graph to check reachability to t
-    q = deque([t])
-    vis_t = [False]*n
-    vis_t[t] = True
-    while q:
-        v = q.popleft()
-        for u in rev[v]:
-            if not vis_t[u]:
-                vis_t[u] = True
-                q.append(u)
-
-    for r in R:
-        if vis_s[r] and vis_t[r]:
-            # we can optionally reconstruct a path via r, but building one requires parent arrays
-            return True
-    return False
-
 def main():
     parser = argparse.ArgumentParser(description="SOME: does there exist an s-t path that includes at least one vertex from R? (name-based format)")
     parser.add_argument("input", help="input file (name-based format)")
     parser.add_argument("--force-directed", action="store_true",
                         help="treat every edge as directed u->v (ignores '--' undirected marker)")
-    parser.add_argument("--method", choices=["state-bfs", "two-bfs"], default="state-bfs",
-                        help="algorithm to use: default state-bfs (BFS with seenRed-state). two-bfs is faster/simple check.")
     args = parser.parse_args()
 
     n, m, s_name, t_name, names, R_names, edges = read_graph_name_format(args.input)
@@ -201,15 +169,7 @@ def main():
     s_idx = name_to_idx[s_name]; t_idx = name_to_idx[t_name]
     R_idx_set = set(name_to_idx[nm] for nm in R_names if nm in name_to_idx)
 
-    adj, rev = build_adj_from_edges(n, edges, force_directed=args.force_directed)
-
-    if args.method == "two-bfs":
-        ok = two_bfs_reach(n, adj, rev, s_idx, t_idx, R_idx_set)
-        if ok:
-            print("yes")
-        else:
-            print("no")
-        return
+    adj, _ = build_adj_from_edges(n, edges, force_directed=args.force_directed)
 
     ok, path_idx = bfs_seen_red(n, adj, s_idx, t_idx, R_idx_set)
     if ok:
