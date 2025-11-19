@@ -99,7 +99,7 @@ No external dependencies required (uses only Python standard library).
 - **Implementation**: BFS from s to t, avoiding red vertices (except s and t are allowed even if red). We mark all internal red vertices as forbidden and run standard BFS to find the shortest path.
 
 ### SOME Problem
-- **Complexity**: O(n·m) - Polynomial (Edmonds-Karp is O(VE²) but we limit to n augmenting paths)
+- **Complexity**: O(n·m) - Polynomial (Edmonds-Karp typically O(VE²) for max flow, but we only need one path so limit to n augmenting paths)
 - **Algorithm**: Ford-Fulkerson (Edmonds-Karp) with vertex splitting to find simple paths
 - **Implementation**: Uses network flow with vertex splitting to guarantee simple paths (no repeated vertices). Each vertex v is split into v_in and v_out connected by a capacity-1 edge, ensuring each vertex is used at most once. Original edges become u_out → v_in. We find augmenting paths using BFS and check if they include at least one red vertex. If no direct path uses red, we check for paths s→r→t for each red vertex r, ensuring the combined path is simple by blocking vertices used in the first segment. This approach correctly handles the simple path requirement that was problematic in naive BFS implementations.
 

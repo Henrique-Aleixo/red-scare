@@ -231,7 +231,9 @@ def ford_fulkerson_some(n, adj, s, t, R) -> Tuple[bool, List[int]]:
     flow = {}  # (u, v) -> flow value
     
     # Try to find augmenting paths, checking each for red vertex usage
-    max_iterations = n  # Limit iterations (Edmonds-Karp is O(VE^2) but we limit to n paths)
+    # Limit to n iterations: Edmonds-Karp is O(VE²) for max flow, but we only need one path
+    # Each BFS takes O(E), so with n iterations we get O(n·E) = O(n·m) complexity
+    max_iterations = n
     
     for iteration in range(max_iterations):
         path = find_augmenting_path(flow_adj, capacities, flow, source, sink, n, R)
