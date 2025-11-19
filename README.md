@@ -96,17 +96,17 @@ No external dependencies required (uses only Python standard library).
 ### NONE Problem
 - **Complexity**: O(n + m) - Polynomial
 - **Algorithm**: Remove red vertices (except endpoints), then BFS for shortest path
-- **Implementation**: Standard BFS on modified graph
+- **Implementation**: BFS from s to t, avoiding red vertices (except s and t are allowed even if red). We mark all internal red vertices as forbidden and run standard BFS to find the shortest path.
 
 ### SOME Problem
 - **Complexity**: O(n + m) - Polynomial
 - **Algorithm**: Check if there exists a path from s to any red vertex and from that red vertex to t
-- **Implementation**: Two BFS traversals
+- **Implementation**: BFS with state (seenRed = 0/1) to guarantee path simplicity (no repeated vertices). The state space is (vertex, seenRedFlag) where seenRedFlag indicates whether we've encountered at least one red vertex on the path so far.
 
 ### FEW Problem
 - **Complexity**: O((n + m) log n) - Polynomial
 - **Algorithm**: Shortest path with vertex costs (red = 1, others = 0)
-- **Implementation**: Vertex splitting to convert vertex costs to edge costs, then Dijkstra's algorithm
+- **Implementation**: Transform vertex costs into edge weights using vertex splitting. Each vertex v is split into v_in and v_out connected by an edge of weight 1 if v is red, 0 otherwise. Original edges connect v_out to u_in with weight 0. Run Dijkstra's algorithm from s_out to t_out to find the path minimizing the number of red vertices.
 
 ### MANY Problem
 - **Complexity**: NP-hard (longest path problem with vertex weights)
@@ -115,7 +115,7 @@ No external dependencies required (uses only Python standard library).
   - Exact branch-and-bound search with pruning
   - Beam search heuristics
   - Adaptive timeouts based on instance size
-- **Implementation**: See `doc/MANY_Strategy_Plan.md` for detailed strategy
+- **Implementation**: For small instances or trees/DAGs, uses polynomial-time algorithms (DFS for trees, topological sort + DP for DAGs). For general graphs, uses branch-and-bound DFS with pruning based on upper bounds of reachable red vertices. For larger instances, falls back to beam search or greedy heuristics with timeout support.
 
 ## Results
 
