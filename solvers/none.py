@@ -15,7 +15,12 @@ Behavior:
     ->  => directed (u -> v only)
 - By default the script honors per-edge directionality found in the file.
 - You can force all edges to be treated as directed with --force-directed.
-- Output:
+
+Implementation:
+BFS from s to t, avoiding red vertices (except s and t are allowed even if red).
+We mark all internal red vertices as forbidden and run standard BFS to find the shortest path.
+
+Output:
     If path exists: prints length (edge count) on one line, then the path (vertex names) on next.
     If no such path: prints -1
 

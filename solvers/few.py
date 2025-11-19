@@ -3,15 +3,6 @@
 few.py
 Problem FEW: find an s–t path minimizing the number of red vertices.
 
-Approach:
-- Each vertex v has cost = 1 if v ∈ R else 0.
-- Transform vertex costs into edge weights by splitting every vertex v
-  into (v_in, v_out) connected by an edge of weight cost(v).
-- For every original edge (u, v):
-    add edges (u_out -> v_in) and (v_out -> u_in)
-  (for directed graphs, only add one direction as needed).
-- Run Dijkstra from s_out to t_in.
-
 New input format (name-based):
 n m r
 s t
@@ -25,6 +16,12 @@ Behavior:
     ->  => directed (u -> v only)
 - By default the script honors per-edge directionality found in the file.
 - You can force all edges to be treated as directed with --force-directed.
+
+Implementation:
+Transform vertex costs into edge weights using vertex splitting. Each vertex v is split
+into v_in and v_out connected by an edge of weight 1 if v is red, 0 otherwise. Original
+edges connect v_out to u_in with weight 0. Run Dijkstra's algorithm from s_out to t_out
+to find the path minimizing the number of red vertices.
 
 Output:
 - Minimum number of red vertices on an s–t path.
