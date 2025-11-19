@@ -23,8 +23,8 @@ The state space is (vertex, seenRedFlag) where seenRedFlag indicates whether
 we've encountered at least one red vertex on the path so far.
 
 Output:
-- Prints "yes" and a sample path (vertex names) if one exists.
-- Prints "no" otherwise.
+- Prints "true" and a sample path (vertex names) if one exists.
+- Prints "false" otherwise.
 """
 import argparse
 from collections import deque
@@ -173,10 +173,10 @@ def main():
 
     ok, path_idx = bfs_seen_red(n, adj, s_idx, t_idx, R_idx_set)
     if ok:
-        print("yes")
+        print("true")
         print(" ".join(names[i] for i in path_idx))
     else:
-        print("no")
+        print("false")
 
 if __name__ == "__main__":
     main()

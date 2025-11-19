@@ -38,11 +38,11 @@ def run_some(instance_path):
         if not output:
             return False, None, "No output from solver"
         
-        # Parse output: first line is "yes" or "no"
+        # Parse output: first line is "true" or "false"
         lines = output.splitlines()
         answer = lines[0].strip().lower()
         
-        if answer not in ["yes", "no"]:
+        if answer not in ["true", "false"]:
             return False, None, f"Unexpected output: {answer}"
         
         return True, answer, None
