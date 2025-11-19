@@ -16,16 +16,19 @@ The Red Scare problem involves finding paths in a graph with special constraints
 ```
 red-scare/
 ├── solvers/          # Problem solvers
-│   ├── none.py       # NONE problem solver
-│   ├── some.py       # SOME problem solver
-│   ├── few.py        # FEW problem solver
-│   └── many.py       # MANY problem solver
-├── data/             # Test instances
-├── doc/              # Documentation
+│   ├── none.py       # NONE problem solver (BFS-based)
+│   ├── some.py       # SOME problem solver (BFS-based)
+│   ├── few.py        # FEW problem solver (Dijkstra with vertex splitting)
+│   └── many.py       # MANY problem solver (NP-hard, uses heuristics + exact search)
+├── data/             # Test instances (154 instances)
+├── doc/              # Documentation and strategy plans
+│   ├── MANY_Strategy_Plan.md  # Detailed strategy for MANY problem
+│   └── Red Scare Notes.txt    # Problem notes and algorithms
 ├── run_none_all.py   # Batch runner for NONE
 ├── run_some_all.py   # Batch runner for SOME
 ├── run_few_all.py    # Batch runner for FEW
-└── results.txt       # Results summary
+├── run_many_all.py   # Batch runner for MANY
+└── results.txt       # Results summary for all instances
 ```
 
 ## Input Format
@@ -77,6 +80,9 @@ python run_some_all.py
 
 # Run FEW solver on all instances
 python run_few_all.py
+
+# Run MANY solver on all instances (NP-hard, may take longer)
+python run_many_all.py
 ```
 
 ## Requirements
@@ -85,7 +91,63 @@ python run_few_all.py
 
 No external dependencies required (uses only Python standard library).
 
+## Algorithm Approaches
+
+### NONE Problem
+- **Complexity**: O(n + m) - Polynomial
+- **Algorithm**: Remove red vertices (except endpoints), then BFS for shortest path
+- **Implementation**: Standard BFS on modified graph
+
+### SOME Problem
+- **Complexity**: O(n + m) - Polynomial
+- **Algorithm**: Check if there exists a path from s to any red vertex and from that red vertex to t
+- **Implementation**: Two BFS traversals
+
+### FEW Problem
+- **Complexity**: O((n + m) log n) - Polynomial
+- **Algorithm**: Shortest path with vertex costs (red = 1, others = 0)
+- **Implementation**: Vertex splitting to convert vertex costs to edge costs, then Dijkstra's algorithm
+
+### MANY Problem
+- **Complexity**: NP-hard (longest path problem with vertex weights)
+- **Algorithm**: Multi-tier strategy combining:
+  - Special case detection (DAGs, trees, small instances)
+  - Exact branch-and-bound search with pruning
+  - Beam search heuristics
+  - Adaptive timeouts based on instance size
+- **Implementation**: See `doc/MANY_Strategy_Plan.md` for detailed strategy
+
 ## Results
 
-See `results.txt` for a summary of results across all test instances.
+### Overall Performance Summary
+
+The solvers were tested on **154 instances** across 9 problem groups. Results are grouped by problem type:
+
+| Problem Group | Instances | NONE | FEW | MANY | SOME |
+|---------------|-----------|------|-----|------|------|
+| **common** | 30 | 30/30 (100.0%) | 30/30 (100.0%) | 19/30 (63.3%) | 30/30 (100.0%) |
+| **gnm** | 24 | 24/24 (100.0%) | 24/24 (100.0%) | 18/24 (75.0%) | 24/24 (100.0%) |
+| **grid** | 12 | 12/12 (100.0%) | 12/12 (100.0%) | 9/12 (75.0%) | 12/12 (100.0%) |
+| **increase** | 18 | 18/18 (100.0%) | 18/18 (100.0%) | 18/18 (100.0%) | 18/18 (100.0%) |
+| **other** | 4 | 4/4 (100.0%) | 4/4 (100.0%) | 3/4 (75.0%) | 4/4 (100.0%) |
+| **rusty** | 17 | 17/17 (100.0%) | 17/17 (100.0%) | 6/17 (35.3%) | 17/17 (100.0%) |
+| **ski** | 13 | 13/13 (100.0%) | 13/13 (100.0%) | 13/13 (100.0%) | 13/13 (100.0%) |
+| **smallworld** | 12 | 12/12 (100.0%) | 12/12 (100.0%) | 10/12 (83.3%) | 12/12 (100.0%) |
+| **wall** | 24 | 24/24 (100.0%) | 24/24 (100.0%) | 24/24 (100.0%) | 24/24 (100.0%) |
+| **TOTAL** | **154** | **154/154 (100.0%)** | **154/154 (100.0%)** | **120/154 (77.9%)** | **154/154 (100.0%)** |
+
+### Notes on Results
+
+- **SOME**: Achieved 100% success rate across all instances (polynomial-time problem)
+- **FEW**: 100% success rate - all instances solved optimally using Dijkstra's algorithm
+- **NONE**: 100% success rate - all instances solved using BFS (some return `-1` when no path exists, which is a valid answer)
+- **MANY**: 77.9% success rate (120/154 instances) - challenging due to NP-hardness, with 34 instances timing out (marked as `!?`)
+
+**Result Codes:**
+- **Numbers**: Optimal or best-found solution (number of red vertices)
+- **`-1`**: Valid answer meaning "no valid path exists" (counts as solved)
+- **`!?`**: Timeout or unable to solve within time limit (does NOT count as solved)
+- **`true`/`false`**: Boolean result for SOME problem
+
+See `results.txt` for detailed per-instance results.
 
