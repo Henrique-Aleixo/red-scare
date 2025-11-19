@@ -17,7 +17,7 @@ The Red Scare problem involves finding paths in a graph with special constraints
 red-scare/
 ├── solvers/          # Problem solvers
 │   ├── none.py       # NONE problem solver (BFS-based)
-│   ├── some.py       # SOME problem solver (BFS-based)
+│   ├── some.py       # SOME problem solver (Ford-Fulkerson with vertex splitting)
 │   ├── few.py        # FEW problem solver (Dijkstra with vertex splitting)
 │   └── many.py       # MANY problem solver (NP-hard, uses heuristics + exact search)
 ├── data/             # Test instances (154 instances)
@@ -99,9 +99,9 @@ No external dependencies required (uses only Python standard library).
 - **Implementation**: BFS from s to t, avoiding red vertices (except s and t are allowed even if red). We mark all internal red vertices as forbidden and run standard BFS to find the shortest path.
 
 ### SOME Problem
-- **Complexity**: O(n + m) - Polynomial
-- **Algorithm**: Check if there exists a path from s to any red vertex and from that red vertex to t
-- **Implementation**: BFS with state (seenRed = 0/1) to guarantee path simplicity (no repeated vertices). The state space is (vertex, seenRedFlag) where seenRedFlag indicates whether we've encountered at least one red vertex on the path so far.
+- **Complexity**: O(n·m) - Polynomial (Edmonds-Karp is O(VE²) but we limit to n augmenting paths)
+- **Algorithm**: Ford-Fulkerson (Edmonds-Karp) with vertex splitting to find simple paths
+- **Implementation**: Uses network flow with vertex splitting to guarantee simple paths (no repeated vertices). Each vertex v is split into v_in and v_out connected by a capacity-1 edge, ensuring each vertex is used at most once. Original edges become u_out → v_in. We find augmenting paths using BFS and check if they include at least one red vertex. If no direct path uses red, we check for paths s→r→t for each red vertex r, ensuring the combined path is simple by blocking vertices used in the first segment. This approach correctly handles the simple path requirement that was problematic in naive BFS implementations.
 
 ### FEW Problem
 - **Complexity**: O((n + m) log n) - Polynomial
@@ -149,9 +149,10 @@ The solvers were tested on **154 instances** across 9 problem groups. Results ar
   - All instances solved optimally using Dijkstra's algorithm
   
 - **SOME**: 100% success rate (154/154 instances)
-  - 129 instances (83.8%) returned `true` (path with at least one red vertex exists)
-  - 25 instances (16.2%) returned `false` (no such path exists)
-  - All instances solved using BFS with state tracking
+  - 107 instances (69.5%) returned `true` (path with at least one red vertex exists)
+  - 47 instances (30.5%) returned `false` (no such path exists)
+  - All instances solved using Ford-Fulkerson (Edmonds-Karp) with vertex splitting
+  - This implementation correctly ensures simple paths, fixing a bug in the previous BFS approach
   
 - **MANY**: 77.9% success rate (120/154 instances)
   - 94 instances (61.0%) found a solution (maximum red vertices)
