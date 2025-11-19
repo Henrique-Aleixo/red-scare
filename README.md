@@ -110,12 +110,45 @@ No external dependencies required (uses only Python standard library).
 
 ### MANY Problem
 - **Complexity**: NP-hard (longest path problem with vertex weights)
-- **Algorithm**: Multi-tier strategy combining:
-  - Special case detection (DAGs, trees, small instances)
-  - Exact branch-and-bound search with pruning
-  - Beam search heuristics
-  - Adaptive timeouts based on instance size
-- **Implementation**: For small instances or trees/DAGs, uses polynomial-time algorithms (DFS for trees, topological sort + DP for DAGs). For general graphs, uses branch-and-bound DFS with pruning based on upper bounds of reachable red vertices. For larger instances, falls back to beam search or greedy heuristics with timeout support.
+- **Computational Hardness**: MANY is NP-hard via reduction from **Hamiltonian Path**:
+  - Given a graph G and vertices s, t, does G have a Hamiltonian path from s to t?
+  - **Reduction**: Mark all vertices as red. Then MANY asks: is there a simple s-t path with exactly n red vertices?
+  - **Correctness**: If yes → the path visits all n vertices (Hamiltonian path exists). If no → no Hamiltonian path exists.
+  - This shows MANY is NP-hard since Hamiltonian Path is NP-complete.
+
+- **Algorithm Overview**: Multi-tier adaptive strategy that tries fast special cases first, then falls back to exact or heuristic methods based on instance size.
+
+- **Adaptive Strategy (in order)**:
+  1. **Special Case: Trees** (O(n))
+     - Check: connected graph with m = 2(n-1) edges
+     - Solve: DFS to find unique s-t path, count reds
+     - Returns immediately if tree detected
+  
+  2. **Special Case: DAGs** (O(n + m))
+     - Check: all edges directed and no cycles (DFS cycle detection)
+     - Solve: topological sort + dynamic programming
+     - `dp[v] = max reds on path from s to v`
+     - Returns immediately if DAG detected
+  
+  3. **Exact Solver** (for n ≤ 20 or `--exact` flag)
+     - Backtracking DFS with branch-and-bound pruning
+     - Pruning: if `current_reds + upper_bound ≤ best_found`, skip branch
+     - Upper bound: counts reds reachable from current node to t (ignoring visited)
+     - Timeout: 30s default (max 120s)
+  
+  4. **Heuristics** (for larger instances)
+     - **Beam Search** (default): maintains top-k partial paths, scores by reds + optimistic estimate
+     - **Greedy**: random walks preferring red neighbors, multiple restarts
+     - Adaptive beam width: 200 (n < 100), 100 (n < 1000), 50 (n ≥ 1000)
+  
+  5. **Improvement Phase** (for medium instances, n < 500)
+     - If heuristic found solution, try exact solver with short timeout (5s) to improve
+
+- **Implementation Details**: 
+  - Uses polynomial-time algorithms for trees/DAGs
+  - Branch-and-bound DFS with reachability-based upper bounds for exact search
+  - Beam search and greedy heuristics with timeout support for larger instances
+  - All methods respect simple path constraints (no repeated vertices)
 
 ## Results
 
