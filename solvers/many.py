@@ -9,14 +9,26 @@ Notes:
     * An exact DFS/backtracking solver with pruning (branch-and-bound).
     * A greedy heuristic and a beam-search heuristic for larger instances.
     * Timeout support: stop after --timeout seconds and return best-so-far.
-- Input format (same as other scripts):
-n m
+
+New input format (name-based):
+n m r
 s t
-r_count r1 r2 ... r_r_count
-u1 v1
-...
-um vm
-- Default: undirected graph. Use --directed for directed graphs.
+<vertices>           # n lines, vertex names ([_a-z0-9]+). If a vertex is red it ends with ' *'
+<edges>              # m lines, each either "u -- v" (undirected) or "u -> v" (directed)
+
+Behavior:
+- Internally the script maps vertex names to indices.
+- Edges are parsed by the connector in each line:
+    --  => undirected (adds both directions)
+    ->  => directed (u -> v only)
+- By default the script honors per-edge directionality found in the file.
+- You can force all edges to be treated as directed with --force-directed.
+
+Implementation:
+For small instances or trees/DAGs, uses polynomial-time algorithms (DFS for trees,
+topological sort + DP for DAGs). For general graphs, uses branch-and-bound DFS with
+pruning based on upper bounds of reachable red vertices. For larger instances, falls
+back to beam search or greedy heuristics with timeout support.
 
 Usage examples:
     python many.py input.txt --exact --timeout 10
@@ -34,35 +46,228 @@ from collections import deque, defaultdict
 import heapq
 import random
 import sys
+import re
 
-def read_graph(fname):
-    with open(fname) as f:
-        parts = f.read().strip().split()
-    if len(parts) < 5:
-        raise ValueError("Input too short / wrong format.")
-    it = iter(parts)
-    n = int(next(it)); m = int(next(it))
-    s = int(next(it)); t = int(next(it))
-    r_count = int(next(it))
-    R = set()
-    for _ in range(r_count):
-        R.add(int(next(it)))
-    edges = []
-    for _ in range(m):
-        try:
-            u = int(next(it)); v = int(next(it))
-        except StopIteration:
-            raise ValueError("Not enough edge tokens for m edges.")
-        edges.append((u, v))
-    return n, m, s, t, R, edges
+def read_graph_name_format(fname):
+    """Read graph in name-based format (same as few.py, some.py, none.py)."""
+    with open(fname, "r", encoding="utf-8") as f:
+        lines = [line.rstrip("\n") for line in f.readlines()]
+    lines = [ln.strip() for ln in lines if ln.strip() != ""]
 
-def build_adj(n, edges, directed=False):
+    if len(lines) < 2:
+        raise ValueError("File too short: need at least two lines (header and s t).")
+
+    # header: n m r
+    header = lines[0].split()
+    if len(header) < 3:
+        raise ValueError("Header line must be: n m r")
+    n = int(header[0]); m = int(header[1]); r_count = int(header[2])
+
+    # s t on second line (names)
+    st = lines[1].split()
+    if len(st) < 2:
+        raise ValueError("Second line must contain start and end vertex names.")
+    s_name, t_name = st[0], st[1]
+
+    # next n lines: vertex names (with optional trailing * for red)
+    if len(lines) < 2 + n:
+        raise ValueError(f"Expected {n} vertex lines after header; file has fewer.")
+    vertex_lines = lines[2:2+n]
+
+    names = []
+    R_names = set()
+    name_to_idx = {}
+    for i, vl in enumerate(vertex_lines):
+        if vl.endswith("*"):
+            base = vl[:-1].strip()
+            names.append(base)
+            R_names.add(base)
+        else:
+            names.append(vl)
+    for i, nm in enumerate(names):
+        name_to_idx[nm] = i
+
+    if len(R_names) != r_count:
+        print(f"warning: r_count={r_count} but found {len(R_names)} red markers in vertex list", file=sys.stderr)
+
+    # remaining lines are edges
+    edge_lines = lines[2+n:]
+    if len(edge_lines) < m:
+        if m != 0:
+            raise ValueError(f"Expected {m} edge lines but file has {len(edge_lines)}")
+    edges = []  # list of (u_idx, v_idx, directed_bool)
+    edge_re_arrow = re.compile(r'^\s*([_a-z0-9]+)\s*(->|--)\s*([_a-z0-9]+)\s*$')
+    for el in edge_lines[:m]:
+        mo = edge_re_arrow.match(el)
+        if not mo:
+            raise ValueError(f"Edge line has wrong format: '{el}' (expected 'u -- v' or 'u -> v')")
+        u_name, conn, v_name = mo.group(1), mo.group(2), mo.group(3)
+        if u_name not in name_to_idx or v_name not in name_to_idx:
+            raise ValueError(f"Edge references unknown vertex: {u_name} or {v_name}")
+        u = name_to_idx[u_name]; v = name_to_idx[v_name]
+        directed = (conn == "->")
+        edges.append((u, v, directed))
+
+    return n, m, s_name, t_name, names, R_names, edges
+
+def build_adj(n, edges, force_directed=False):
+    """Build adjacency list from edges. Handles both directed and undirected edges."""
     adj = [[] for _ in range(n)]
-    for u, v in edges:
-        adj[u].append(v)
-        if not directed:
-            adj[v].append(u)
+    for u, v, directed in edges:
+        if force_directed:
+            adj[u].append(v)
+        else:
+            if directed:
+                adj[u].append(v)
+            else:
+                adj[u].append(v)
+                adj[v].append(u)
     return adj
+
+# ----- Special Case Solvers (Polynomial Time) -----
+
+def is_dag(adj, n):
+    """Check if graph is a DAG using DFS cycle detection."""
+    visited = [False] * n
+    rec_stack = [False] * n
+    
+    def has_cycle(v):
+        visited[v] = True
+        rec_stack[v] = True
+        for u in adj[v]:
+            if not visited[u]:
+                if has_cycle(u):
+                    return True
+            elif rec_stack[u]:
+                return True
+        rec_stack[v] = False
+        return False
+    
+    for i in range(n):
+        if not visited[i]:
+            if has_cycle(i):
+                return False
+    return True
+
+def solve_dag(adj, R, s, t, n):
+    """Solve MANY for DAG using dynamic programming. O(n + m)."""
+    # Topological sort using Kahn's algorithm
+    in_degree = [0] * n
+    for u in range(n):
+        for v in adj[u]:
+            in_degree[v] += 1
+    
+    q = deque([i for i in range(n) if in_degree[i] == 0])
+    topo_order = []
+    
+    while q:
+        u = q.popleft()
+        topo_order.append(u)
+        for v in adj[u]:
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
+                q.append(v)
+    
+    # If we didn't process all vertices, there's a cycle (shouldn't happen if is_dag is correct)
+    if len(topo_order) != n:
+        return None, None
+    
+    # DP: dp[v] = max reds on path from s to v
+    dp = [-1] * n
+    parent = [-1] * n
+    
+    # Find s in topological order
+    s_pos = topo_order.index(s) if s in topo_order else -1
+    if s_pos == -1:
+        return -1, None
+    
+    dp[s] = 1 if s in R else 0
+    
+    # Process vertices in topological order starting from s
+    for i in range(s_pos, n):
+        u = topo_order[i]
+        if dp[u] == -1:
+            continue  # unreachable from s
+        for v in adj[u]:
+            new_val = dp[u] + (1 if v in R else 0)
+            if new_val > dp[v]:
+                dp[v] = new_val
+                parent[v] = u
+    
+    if dp[t] == -1:
+        return -1, None
+    
+    # Reconstruct path
+    path = []
+    cur = t
+    while cur != -1:
+        path.append(cur)
+        cur = parent[cur]
+    path.reverse()
+    
+    return dp[t], path
+
+def is_tree(adj, n):
+    """Check if graph is a tree: connected and m = n-1."""
+    # Count edges
+    m = sum(len(adj[i]) for i in range(n))
+    if n == 0:
+        return True
+    if m != 2 * (n - 1):  # For undirected, each edge counted twice
+        return False
+    
+    # Check connectivity
+    visited = [False] * n
+    stack = [0]
+    visited[0] = True
+    count = 1
+    
+    while stack:
+        u = stack.pop()
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                stack.append(v)
+                count += 1
+    
+    return count == n
+
+def solve_tree(adj, R, s, t, n):
+    """Solve MANY for tree: unique s-t path exists. O(n)."""
+    # DFS to find unique path from s to t
+    visited = [False] * n
+    path = []
+    found = False
+    
+    def dfs(u, target):
+        nonlocal found
+        if found:
+            return
+        visited[u] = True
+        path.append(u)
+        if u == target:
+            found = True
+            return
+        for v in adj[u]:
+            if not visited[v]:
+                dfs(v, target)
+                if found:
+                    return
+        if not found:
+            path.pop()
+    
+    dfs(s, t)
+    
+    if not found:
+        return -1, None
+    
+    red_count = sum(1 for v in path if v in R)
+    return red_count, path
+
+def get_adaptive_timeout(n):
+    """Set adaptive timeout based on instance size."""
+    # Global 30 second timeout for all instances
+    return 30.0
 
 def reachable_reds_upper_bound(adj, R, current, visited, t):
     """
@@ -75,27 +280,31 @@ def reachable_reds_upper_bound(adj, R, current, visited, t):
     """
     n = len(adj)
     # BFS from current avoiding visited to get reachable set
-    q = deque([current])
-    seen = set([current])  # allow current even if visited? current shouldn't be in visited typically
     forbidden = set(visited)
+    # Don't include current in forbidden if we're starting from it
+    if current in forbidden:
+        forbidden = forbidden - {current}
+    
+    q = deque([current])
+    seen = set([current])
     reachable = set()
+    
     while q:
         v = q.popleft()
-        if v in forbidden:
+        if v in forbidden and v != current:
             continue
         reachable.add(v)
         for u in adj[v]:
             if u not in seen and u not in forbidden:
-                seen.add(u); q.append(u)
+                seen.add(u)
+                q.append(u)
 
-    # If t not reachable at all, upper bound is -inf (no s-t path)
+    # If t not reachable at all, upper bound is 0 (no s-t path via unvisited nodes)
     if t not in reachable:
-        # But maybe t is reachable via nodes that were forbidden; caller should handle no-path separately
-        # Return 0 as conservative upper bound for red count on s->t via allowed nodes.
         return 0
 
-    # Count reds in reachable (excluding already visited)
-    return sum(1 for v in reachable if v in R and v not in forbidden)
+    # Count reds in reachable (excluding already visited, but including current if it's red)
+    return sum(1 for v in reachable if v in R and (v not in visited or v == current))
 
 def exact_dfs(adj, R, s, t, timeout, directed=False):
     """
@@ -156,9 +365,10 @@ def exact_dfs(adj, R, s, t, timeout, directed=False):
             return False
 
         if v == t:
+            # We're at t, and it's already in the path and counted in current_reds
             if current_reds > best_count:
                 best_count = current_reds
-                best_path = list(path)
+                best_path = list(path)  # Path already includes t
             return False
 
         for u in neighbors_order(v):
@@ -185,12 +395,13 @@ def exact_dfs(adj, R, s, t, timeout, directed=False):
     return best_count, best_path
 
 # ----- Heuristics -----
-def greedy_max_red(adj, R, s, t, max_steps=10000):
+def greedy_max_red(adj, R, s, t, max_steps=10000, timeout=float('inf')):
     """
     Greedy walk: progressively extend path choosing an unvisited neighbor that
     maximizes immediate gain (is red) and keeps t reachable. Random tie-breaking.
     Repeat several random restarts (shuffle neighbor order) and keep best path found.
     """
+    start_time = time.time()
     n = len(adj)
     rev = [[] for _ in range(n)]
     for u in range(n):
@@ -213,6 +424,9 @@ def greedy_max_red(adj, R, s, t, max_steps=10000):
     best_count = -1; best_path = None
     attempts = 50
     for attempt in range(attempts):
+        # Check timeout
+        if time.time() - start_time > timeout:
+            break
         visited = [False]*n
         path = [s]
         visited[s] = True
@@ -220,6 +434,9 @@ def greedy_max_red(adj, R, s, t, max_steps=10000):
         cur_reds = 1 if s in R else 0
         steps = 0
         while cur != t and steps < max_steps:
+            # Check timeout during path extension
+            if time.time() - start_time > timeout:
+                break
             nbrs = [u for u in adj[cur] if not visited[u] and can_reach_t[u]]
             if not nbrs:
                 break
@@ -238,11 +455,12 @@ def greedy_max_red(adj, R, s, t, max_steps=10000):
             best_path = list(path)
     return best_count, best_path
 
-def beam_search(adj, R, s, t, beam_width=50, max_depth=2000):
+def beam_search(adj, R, s, t, beam_width=50, max_depth=2000, timeout=float('inf')):
     """
     Beam search on simple paths, scoring by number of reds collected so far + optimistic estimate.
     Maintains only 'beam_width' best partial paths per depth.
     """
+    start_time = time.time()
     n = len(adj)
     # Precompute can_reach_t (simple)
     rev = [[] for _ in range(n)]
@@ -267,6 +485,9 @@ def beam_search(adj, R, s, t, beam_width=50, max_depth=2000):
     best_count = -1; best_path = None
 
     for depth in range(max_depth):
+        # Check timeout
+        if time.time() - start_time > timeout:
+            break
         candidates = []
         for score, reds, path, visited in beam:
             cur = path[-1]
@@ -300,17 +521,33 @@ def beam_search(adj, R, s, t, beam_width=50, max_depth=2000):
 # ----- CLI & orchestrator -----
 def main():
     parser = argparse.ArgumentParser(description="MANY: maximize number of red vertices on an s-t simple path")
-    parser.add_argument("input", help="input file")
-    parser.add_argument("--directed", action="store_true", help="treat edges as directed")
-    parser.add_argument("--exact", action="store_true", help="run exact backtracking (may be slow)")
+    parser.add_argument("input", help="input file (name-based format)")
+    parser.add_argument("--force-directed", action="store_true", help="treat all edges as directed")
+    parser.add_argument("--exact", action="store_true", help="force exact backtracking (may be slow)")
     parser.add_argument("--heuristic", choices=["greedy", "beam"], default="beam", help="heuristic to use when not exact")
-    parser.add_argument("--timeout", type=float, default=5.0, help="timeout in seconds (for exact/backtracking); returns best-so-far")
-    parser.add_argument("--beam", type=int, default=100, help="beam width for beam search")
+    parser.add_argument("--timeout", type=float, default=None, help="timeout in seconds (overrides adaptive timeout)")
+    parser.add_argument("--beam", type=int, default=None, help="beam width for beam search (overrides adaptive)")
     args = parser.parse_args()
 
-    n, m, s, t, R, edges = read_graph(args.input)
-    adj = build_adj(n, edges, directed=args.directed)
-
+    # Read graph in name-based format
+    n, m, s_name, t_name, names, R_names, edges = read_graph_name_format(args.input)
+    
+    # Map names to indices
+    name_to_idx = {nm: i for i, nm in enumerate(names)}
+    if s_name not in name_to_idx or t_name not in name_to_idx:
+        print("Error: start or end vertex not present in vertex list.", file=sys.stderr)
+        sys.exit(2)
+    
+    s = name_to_idx[s_name]
+    t = name_to_idx[t_name]
+    R = set(name_to_idx[nm] for nm in R_names if nm in name_to_idx)
+    
+    # Build adjacency list
+    adj = build_adj(n, edges, force_directed=args.force_directed)
+    
+    # Check if graph is all directed (for DAG detection)
+    all_directed = all(directed for _, _, directed in edges)
+    
     # Quick check: is there any s-t path at all (simple reachability)
     q = deque([s])
     seen = [False]*n
@@ -319,38 +556,95 @@ def main():
         v = q.popleft()
         for u in adj[v]:
             if not seen[u]:
-                seen[u] = True; q.append(u)
+                seen[u] = True
+                q.append(u)
     if not seen[t]:
         print(-1)
         return
 
-    if args.exact:
-        best_count, best_path = exact_dfs(adj, R, s, t, timeout=args.timeout, directed=args.directed)
+    # Phase 1: Check for special cases (polynomial-time solvers)
+    
+    # Check if it's a tree
+    if is_tree(adj, n):
+        best_count, best_path = solve_tree(adj, R, s, t, n)
+        if best_count == -1:
+            print(-1)
+        else:
+            print(best_count)
+            if best_path:
+                # Convert indices back to names for output
+                path_names = [names[v] for v in best_path]
+                print(" ".join(path_names))
+        return
+    
+    # Check if it's a DAG (only makes sense if all edges are directed)
+    if all_directed and is_dag(adj, n):
+        best_count, best_path = solve_dag(adj, R, s, t, n)
+        if best_count is None:
+            # Fall through to general solver
+            pass
+        elif best_count == -1:
+            print(-1)
+        else:
+            print(best_count)
+            if best_path:
+                path_names = [names[v] for v in best_path]
+                print(" ".join(path_names))
+        return
+
+    # Phase 2: Adaptive strategy based on instance size
+    adaptive_timeout = get_adaptive_timeout(n)
+    timeout = args.timeout if args.timeout is not None else adaptive_timeout
+    # Enforce maximum timeout to prevent hanging (safeguard for run_many_all.py)
+    MAX_TIMEOUT = 120.0  # Match run_many_all.py timeout
+    timeout = min(timeout, MAX_TIMEOUT)
+    
+    # Adaptive beam width
+    if args.beam is not None:
+        beam_width = args.beam
+    elif n < 100:
+        beam_width = 200
+    elif n < 1000:
+        beam_width = 100
+    else:
+        beam_width = 50
+
+    # For small instances, try exact first
+    if n <= 20 or args.exact:
+        best_count, best_path = exact_dfs(adj, R, s, t, timeout=timeout)
         if best_count == -1:
             print(-1)
             return
         if best_path is None:
-            # no complete path found before timeout but s->t exists; best_count may be -1
-            print(best_count if best_count>=0 else -1)
-            if best_path:
-                print(" ".join(map(str,best_path)))
+            print(best_count if best_count >= 0 else -1)
             return
         print(best_count)
-        print(" ".join(map(str, best_path)))
+        if best_path:
+            path_names = [names[v] for v in best_path]
+            print(" ".join(path_names))
         return
 
-    # heuristics
+    # For larger instances, use heuristics
     if args.heuristic == "greedy":
-        best_count, best_path = greedy_max_red(adj, R, s, t)
+        best_count, best_path = greedy_max_red(adj, R, s, t, timeout=timeout)
     else:
-        best_count, best_path = beam_search(adj, R, s, t, beam_width=args.beam)
+        best_count, best_path = beam_search(adj, R, s, t, beam_width=beam_width, timeout=timeout)
+    
+    # If heuristic found solution and instance is medium-sized, try to improve with exact
+    if best_count >= 0 and n < 500 and not args.exact:
+        # Try exact with shorter timeout to see if we can improve
+        improved_count, improved_path = exact_dfs(adj, R, s, t, timeout=min(timeout, 5.0))
+        if improved_count > best_count and improved_path is not None:
+            best_count = improved_count
+            best_path = improved_path
 
     if best_count == -1:
         print(-1)
     else:
         print(best_count)
         if best_path:
-            print(" ".join(map(str, best_path)))
+            path_names = [names[v] for v in best_path]
+            print(" ".join(path_names))
 
 if __name__ == "__main__":
     main()
