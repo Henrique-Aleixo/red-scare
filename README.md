@@ -138,10 +138,26 @@ The solvers were tested on **154 instances** across 9 problem groups. Results ar
 
 ### Notes on Results
 
-- **SOME**: Achieved 100% success rate across all instances (polynomial-time problem)
-- **FEW**: 100% success rate - all instances solved optimally using Dijkstra's algorithm
-- **NONE**: 100% success rate - all instances solved using BFS (some return `-1` when no path exists, which is a valid answer)
-- **MANY**: 77.9% success rate (120/154 instances) - challenging due to NP-hardness, with 34 instances timing out (marked as `!?`)
+- **NONE**: 100% success rate (154/154 instances)
+  - 113 instances (73.4%) found a solution (path length)
+  - 41 instances (26.6%) returned `-1` (no valid path exists, which is a valid answer)
+  - All instances solved using BFS
+  
+- **FEW**: 100% success rate (154/154 instances)
+  - 130 instances (84.4%) found a solution (minimum red vertices)
+  - 24 instances (15.6%) returned `-1` (no valid path exists, which is a valid answer)
+  - All instances solved optimally using Dijkstra's algorithm
+  
+- **SOME**: 100% success rate (154/154 instances)
+  - 129 instances (83.8%) returned `true` (path with at least one red vertex exists)
+  - 25 instances (16.2%) returned `false` (no such path exists)
+  - All instances solved using BFS with state tracking
+  
+- **MANY**: 77.9% success rate (120/154 instances)
+  - 94 instances (61.0%) found a solution (maximum red vertices)
+  - 26 instances (16.9%) returned `-1` (no valid path exists, which is a valid answer)
+  - 34 instances (22.1%) timed out (marked as `!?`, does NOT count as solved)
+  - Challenging due to NP-hardness - uses exact search for small instances, heuristics for larger ones
 
 **Result Codes:**
 - **Numbers**: Optimal or best-found solution (number of red vertices)
