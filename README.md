@@ -19,7 +19,7 @@ red-scare/
 │   ├── none.py       # NONE problem solver (BFS-based)
 │   ├── some.py       # SOME problem solver (Ford-Fulkerson with vertex splitting)
 │   ├── few.py        # FEW problem solver (Dijkstra with vertex splitting)
-│   └── many.py       # MANY problem solver (NP-hard, uses heuristics + exact search)
+│   └── many.py       # MANY problem solver (NP-hard, polynomial-time only: trees & DAGs)
 ├── data/             # Test instances (154 instances)
 ├── doc/              # Documentation and strategy plans
 │   ├── MANY_Strategy_Plan.md  # Detailed strategy for MANY problem
@@ -81,7 +81,7 @@ python run_some_all.py
 # Run FEW solver on all instances
 python run_few_all.py
 
-# Run MANY solver on all instances (NP-hard, may take longer)
+# Run MANY solver on all instances (polynomial-time only: trees & DAGs)
 python run_many_all.py
 ```
 
@@ -116,39 +116,30 @@ No external dependencies required (uses only Python standard library).
   - **Correctness**: If yes → the path visits all n vertices (Hamiltonian path exists). If no → no Hamiltonian path exists.
   - This shows MANY is NP-hard since Hamiltonian Path is NP-complete.
 
-- **Algorithm Overview**: Multi-tier adaptive strategy that tries fast special cases first, then falls back to exact or heuristic methods based on instance size.
+- **Algorithm Overview**: Polynomial-time solutions only for well-defined graph classes. For all other instances, outputs "!?" (unsolved).
 
-- **Adaptive Strategy (in order)**:
-  1. **Special Case: Trees** (O(n))
-     - Check: connected graph with m = 2(n-1) edges
-     - Solve: DFS to find unique s-t path, count reds
+- **Polynomial-Time Special Cases**:
+  1. **Trees** (O(n))
+     - Check: connected graph with m = 2(n-1) edges (undirected, each edge counted twice)
+     - Solve: DFS to find unique s-t path, count red vertices
      - Returns immediately if tree detected
   
-  2. **Special Case: DAGs** (O(n + m))
+  2. **DAGs** (O(n + m))
      - Check: all edges directed and no cycles (DFS cycle detection)
-     - Solve: topological sort + dynamic programming
+     - Solve: topological sort (Kahn's algorithm) + dynamic programming
      - `dp[v] = max reds on path from s to v`
+     - Process vertices in topological order, update dp for each edge
      - Returns immediately if DAG detected
   
-  3. **Exact Solver** (for n ≤ 20 or `--exact` flag)
-     - Backtracking DFS with branch-and-bound pruning
-     - Pruning: if `current_reds + upper_bound ≤ best_found`, skip branch
-     - Upper bound: counts reds reachable from current node to t (ignoring visited)
-     - Timeout: 30s default (max 120s)
-  
-  4. **Heuristics** (for larger instances)
-     - **Beam Search** (default): maintains top-k partial paths, scores by reds + optimistic estimate
-     - **Greedy**: random walks preferring red neighbors, multiple restarts
-     - Adaptive beam width: 200 (n < 100), 100 (n < 1000), 50 (n ≥ 1000)
-  
-  5. **Improvement Phase** (for medium instances, n < 500)
-     - If heuristic found solution, try exact solver with short timeout (5s) to improve
+  3. **All Other Graphs**
+     - Output "!?" (unsolved) - no polynomial-time solution implemented
+     - This ensures we only use polynomial-time algorithms as required
 
 - **Implementation Details**: 
-  - Uses polynomial-time algorithms for trees/DAGs
-  - Branch-and-bound DFS with reachability-based upper bounds for exact search
-  - Beam search and greedy heuristics with timeout support for larger instances
+  - Uses only polynomial-time algorithms (trees: O(n), DAGs: O(n+m))
+  - No exact solvers or heuristics - strictly polynomial-time only
   - All methods respect simple path constraints (no repeated vertices)
+  - For instances that are neither trees nor DAGs, correctly identifies as unsolved
 
 ## Results
 
@@ -158,16 +149,18 @@ The solvers were tested on **154 instances** across 9 problem groups. Results ar
 
 | Problem Group | Instances | NONE | FEW | MANY | SOME |
 |---------------|-----------|------|-----|------|------|
-| **common** | 30 | 30/30 (100.0%) | 30/30 (100.0%) | 19/30 (63.3%) | 30/30 (100.0%) |
-| **gnm** | 24 | 24/24 (100.0%) | 24/24 (100.0%) | 18/24 (75.0%) | 24/24 (100.0%) |
-| **grid** | 12 | 12/12 (100.0%) | 12/12 (100.0%) | 9/12 (75.0%) | 12/12 (100.0%) |
-| **increase** | 18 | 18/18 (100.0%) | 18/18 (100.0%) | 18/18 (100.0%) | 18/18 (100.0%) |
-| **other** | 4 | 4/4 (100.0%) | 4/4 (100.0%) | 3/4 (75.0%) | 4/4 (100.0%) |
-| **rusty** | 17 | 17/17 (100.0%) | 17/17 (100.0%) | 6/17 (35.3%) | 17/17 (100.0%) |
-| **ski** | 13 | 13/13 (100.0%) | 13/13 (100.0%) | 13/13 (100.0%) | 13/13 (100.0%) |
-| **smallworld** | 12 | 12/12 (100.0%) | 12/12 (100.0%) | 10/12 (83.3%) | 12/12 (100.0%) |
-| **wall** | 24 | 24/24 (100.0%) | 24/24 (100.0%) | 24/24 (100.0%) | 24/24 (100.0%) |
-| **TOTAL** | **154** | **154/154 (100.0%)** | **154/154 (100.0%)** | **120/154 (77.9%)** | **154/154 (100.0%)** |
+| **common** | 30 | 30/30 (100.0%) | 30/30 (100.0%) | 0/30 (0.0%) | 30/30 (100.0%) |
+| **gnm** | 24 | 24/24 (100.0%) | 24/24 (100.0%) | 0/24 (0.0%) | 24/24 (100.0%) |
+| **grid** | 12 | 12/12 (100.0%) | 12/12 (100.0%) | 0/12 (0.0%) | 12/12 (100.0%) |
+| **increase** | 18 | 18/18 (100.0%) | 18/18 (100.0%) | 13/18 (72.2%) | 18/18 (100.0%) |
+| **other** | 4 | 4/4 (100.0%) | 4/4 (100.0%) | 1/4 (25.0%) | 4/4 (100.0%) |
+| **rusty** | 17 | 17/17 (100.0%) | 17/17 (100.0%) | 0/17 (0.0%) | 17/17 (100.0%) |
+| **ski** | 13 | 13/13 (100.0%) | 13/13 (100.0%) | 10/13 (76.9%) | 13/13 (100.0%) |
+| **smallworld** | 12 | 12/12 (100.0%) | 12/12 (100.0%) | 0/12 (0.0%) | 12/12 (100.0%) |
+| **wall** | 24 | 24/24 (100.0%) | 24/24 (100.0%) | 0/24 (0.0%) | 24/24 (100.0%) |
+| **TOTAL** | **154** | **154/154 (100.0%)** | **154/154 (100.0%)** | **24/154 (15.6%)** | **154/154 (100.0%)** |
+
+**Note**: MANY results shown are for instances with numeric solutions only. Including `-1` (no path exists), the total solve rate is 48/154 (31.2%).
 
 ### Notes on Results
 
@@ -187,11 +180,12 @@ The solvers were tested on **154 instances** across 9 problem groups. Results ar
   - All instances solved using Ford-Fulkerson (Edmonds-Karp) with vertex splitting
   - This implementation correctly ensures simple paths, fixing a bug in the previous BFS approach
   
-- **MANY**: 77.9% success rate (120/154 instances)
-  - 94 instances (61.0%) found a solution (maximum red vertices)
-  - 26 instances (16.9%) returned `-1` (no valid path exists, which is a valid answer)
-  - 34 instances (22.1%) timed out (marked as `!?`, does NOT count as solved)
-  - Challenging due to NP-hardness - uses exact search for small instances, heuristics for larger ones
+- **MANY**: 31.2% success rate (48/154 instances)
+  - 24 instances (15.6%) found a solution (maximum red vertices) - trees and DAGs only
+  - 24 instances (15.6%) returned `-1` (no valid path exists, which is a valid answer)
+  - 106 instances (68.8%) marked as `!?` (unsolved - not trees or DAGs, does NOT count as solved)
+  - Uses only polynomial-time algorithms: trees (O(n)) and DAGs (O(n+m))
+  - No exact solvers or heuristics - strictly polynomial-time solutions only
 
 **Result Codes:**
 - **Numbers**: Optimal or best-found solution (number of red vertices)

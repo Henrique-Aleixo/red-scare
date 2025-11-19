@@ -38,12 +38,14 @@ def run_many(instance_path):
         if not output:
             return False, None, "No output from solver"
         
-        # Parse output: first line is the number (max red vertices) or -1
+        # Parse output: first line is the number (max red vertices), -1, or "!?"
         # Second line (if present) is the path (we ignore it for results.txt)
         lines = output.splitlines()
         answer = lines[0].strip()
         
-        # Validate it's a number or -1
+        # Validate it's a number, -1, or "!?"
+        if answer == "!?":
+            return True, answer, None
         try:
             int(answer)
         except ValueError:
