@@ -94,12 +94,6 @@ python run_many_all.py
 python run_alternate_all.py
 ```
 
-## Requirements
-
-- Python 3.6+
-
-No external dependencies required (uses only Python standard library).
-
 ## Algorithm Approaches
 
 ### NONE Problem
@@ -182,18 +176,16 @@ The solvers were tested on **154 instances** across 9 problem groups. Results ar
 
 | Problem Group | Instances | NONE | FEW | MANY | SOME | ALTERNATE |
 |---------------|-----------|------|-----|------|------|-----------|
-| **common** | 30 | 30/30 | 30/30 | 0/30 | 30/30 | 30/30 |
-| **gnm** | 24 | 24/24 | 24/24 | 0/24 | 24/24 | 24/24 |
+| **common** | 30 | 30/30 | 30/30 | 12/30 | 30/30 | 30/30 |
+| **gnm** | 24 | 24/24 | 24/24 | 2/24 | 24/24 | 24/24 |
 | **grid** | 12 | 12/12 | 12/12 | 0/12 | 12/12 | 12/12 |
-| **increase** | 18 | 18/18 | 18/18 | 13/18 | 18/18 | 18/18 |
+| **increase** | 18 | 18/18 | 18/18 | 18/18 | 18/18 | 18/18 |
 | **other** | 4 | 4/4 | 4/4 | 1/4 | 4/4 | 4/4 |
-| **rusty** | 17 | 17/17 | 17/17 | 0/17 | 17/17 | 17/17 |
-| **ski** | 13 | 13/13 | 13/13 | 10/13 | 13/13 | 13/13 |
+| **rusty** | 17 | 17/17 | 17/17 | 2/17 | 17/17 | 17/17 |
+| **ski** | 13 | 13/13 | 13/13 | 13/13 | 13/13 | 13/13 |
 | **smallworld** | 12 | 12/12 | 12/12 | 0/12 | 12/12 | 12/12 |
 | **wall** | 24 | 24/24 | 24/24 | 0/24 | 24/24 | 24/24 |
-| **TOTAL** | **154** | **154/154** | **154/154** | **24/154** | **154/154** | **154/154** |
-
-**Note**: MANY results shown are for instances with numeric solutions only. Including `-1` (no path exists), the total solve rate is 48/154 (31.2%).
+| **TOTAL** | **154** | **154/154** | **154/154** | **48/154** | **154/154** | **154/154** |
 
 ### Notes on Results
 
@@ -233,4 +225,10 @@ The solvers were tested on **154 instances** across 9 problem groups. Results ar
 - **`true`/`false`**: Boolean result for SOME and ALTERNATE problems
 
 See `results.txt` for detailed per-instance results.
+
+## Requirements
+
+- Python 3.6+
+
+No external dependencies required (uses only Python standard library).
 
