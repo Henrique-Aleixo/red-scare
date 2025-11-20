@@ -110,11 +110,30 @@ No external dependencies required (uses only Python standard library).
 
 ### MANY Problem
 - **Complexity**: NP-hard (longest path problem with vertex weights)
-- **Computational Hardness**: MANY is NP-hard via reduction from **Hamiltonian Path**:
-  - Given a graph G and vertices s, t, does G have a Hamiltonian path from s to t?
-  - **Reduction**: Mark all vertices as red. Then MANY asks: is there a simple s-t path with exactly n red vertices?
-  - **Correctness**: If yes → the path visits all n vertices (Hamiltonian path exists). If no → no Hamiltonian path exists.
-  - This shows MANY is NP-hard since Hamiltonian Path is NP-complete.
+- **Computational Hardness**: MANY is NP-hard via reduction from **Longest Path**:
+  - **Reducing FROM**: Longest Path (known to be NP-hard)
+    - Input: Graph G, vertices s, t
+    - Question: What is the longest simple path from s to t?
+  
+  - **Reducing TO**: MANY (what we want to prove is hard)
+    - Input: Graph G, vertices s, t, set of red vertices R
+    - Question: What is the maximum number of red vertices on any simple s-t path?
+  
+  - **The Reduction Process**:
+    1. Start with a Longest Path instance: graph G, vertices s, t
+    2. Transform it into a MANY instance:
+       - Use the same graph G and vertices s, t
+       - Mark **all vertices as red** (R = V, where V is the set of all vertices)
+    3. Solve MANY: find the maximum number of red vertices on any simple s-t path
+    4. Extract the answer: since all vertices are red, the answer equals the longest path length
+  
+  - **Why This Works**:
+    - If all vertices are red, maximizing red vertices = maximizing path length (number of vertices visited)
+    - Therefore, solving MANY on this transformed instance solves the original Longest Path problem
+    - If MANY were solvable in polynomial time, then Longest Path would also be solvable in polynomial time
+    - Since Longest Path is NP-hard, MANY must also be NP-hard
+  
+  - **Conclusion**: This reduction shows that MANY is at least as hard as Longest Path, proving MANY is NP-hard.
 
 - **Algorithm Overview**: Polynomial-time solutions only for well-defined graph classes. For all other instances, outputs "!?" (unsolved).
 
