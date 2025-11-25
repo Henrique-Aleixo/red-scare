@@ -123,26 +123,46 @@ def build_adj(n, edges, force_directed=False):
 # ----- Special Case Solvers (Polynomial Time) -----
 
 def is_dag(adj, n):
-    """Check if graph is a DAG using DFS cycle detection."""
+    """Check if graph is a DAG using iterative DFS cycle detection (avoids recursion limit)."""
     visited = [False] * n
     rec_stack = [False] * n
     
-    def has_cycle(v):
-        visited[v] = True
-        rec_stack[v] = True
-        for u in adj[v]:
-            if not visited[u]:
-                if has_cycle(u):
-                    return True
-            elif rec_stack[u]:
-                return True
-        rec_stack[v] = False
-        return False
+    for start in range(n):
+        if visited[start]:
+            continue
+        
+        # Iterative DFS using stack to avoid recursion limit
+        stack = [(start, False)]  # (vertex, is_returning)
+        
+        while stack:
+            v, is_returning = stack.pop()
+            
+            if is_returning:
+                # Returning from DFS - mark as no longer in recursion stack
+                rec_stack[v] = False
+                continue
+            
+            if visited[v]:
+                # Already processed this vertex
+                if rec_stack[v]:
+                    # Found a back edge - cycle detected
+                    return False
+                continue
+            
+            visited[v] = True
+            rec_stack[v] = True
+            
+            # Push return marker
+            stack.append((v, True))
+            
+            # Push all neighbors
+            for u in adj[v]:
+                if not visited[u]:
+                    stack.append((u, False))
+                elif rec_stack[u]:
+                    # Back edge found - cycle detected
+                    return False
     
-    for i in range(n):
-        if not visited[i]:
-            if has_cycle(i):
-                return False
     return True
 
 def solve_dag(adj, R, s, t, n):
@@ -203,16 +223,46 @@ def solve_dag(adj, R, s, t, n):
     
     return dp[t], path
 
-def is_tree(adj, n):
-    """Check if graph is a tree: connected and m = n-1."""
-    # Count edges
-    m = sum(len(adj[i]) for i in range(n))
+def is_tree(adj, n, edges=None):
+    """Check if graph is a tree: connected and m = n-1.
+    
+    Handles both directed and undirected trees:
+    - Undirected tree: m = 2*(n-1) (each edge counted twice in adj)
+    - Directed tree (arborescence): m = n-1 (each edge counted once in adj)
+    """
     if n == 0:
         return True
-    if m != 2 * (n - 1):  # For undirected, each edge counted twice
-        return False
+    if n == 1:
+        return True
     
-    # Check connectivity
+    # Count edges in adjacency list
+    m_adj = sum(len(adj[i]) for i in range(n))
+    
+    # Determine if graph is directed or undirected
+    # If we have edge information, use it; otherwise infer from edge count
+    is_directed_graph = False
+    if edges is not None:
+        # Check if all edges are directed
+        is_directed_graph = all(directed for _, _, directed in edges)
+    else:
+        # Infer: if m_adj is close to n-1, likely directed; if close to 2*(n-1), likely undirected
+        # For a tree: directed has m_adj = n-1, undirected has m_adj = 2*(n-1)
+        if m_adj == n - 1:
+            is_directed_graph = True
+        elif m_adj == 2 * (n - 1):
+            is_directed_graph = False
+        else:
+            return False  # Not a tree (wrong edge count)
+    
+    # Check edge count
+    if is_directed_graph:
+        if m_adj != n - 1:
+            return False
+    else:
+        if m_adj != 2 * (n - 1):
+            return False
+    
+    # Check connectivity (works for both directed and undirected)
     visited = [False] * n
     stack = [0]
     visited[0] = True
@@ -303,8 +353,8 @@ def main():
 
     # Check for special cases (polynomial-time solvers only)
     
-    # Check if it's a tree
-    if is_tree(adj, n):
+    # Check if it's a tree (with original edge directions)
+    if is_tree(adj, n, edges):
         best_count, best_path = solve_tree(adj, R, s, t, n)
         if best_count == -1:
             print(-1)
@@ -316,7 +366,7 @@ def main():
                 print(" ".join(path_names))
         return
     
-    # Check if it's a DAG (only makes sense if all edges are directed)
+    # Check if it's a DAG (with original edge directions)
     if all_directed and is_dag(adj, n):
         best_count, best_path = solve_dag(adj, R, s, t, n)
         if best_count is None:
@@ -330,7 +380,41 @@ def main():
                 path_names = [names[v] for v in best_path]
                 print(" ".join(path_names))
         return
-
+    
+    # If graph has undirected edges, try treating them as directed to see if it becomes a DAG
+    # This can help solve more instances where the graph structure is DAG-like when directed
+    if not all_directed and not args.force_directed:
+        # Build a directed version (treat all edges as directed)
+        adj_directed = build_adj(n, edges, force_directed=True)
+        
+        # Check if this directed version is a DAG
+        if is_dag(adj_directed, n):
+            # Also check if s-t path exists in directed version
+            q_directed = deque([s])
+            seen_directed = [False]*n
+            seen_directed[s] = True
+            while q_directed:
+                v = q_directed.popleft()
+                for u in adj_directed[v]:
+                    if not seen_directed[u]:
+                        seen_directed[u] = True
+                        q_directed.append(u)
+            
+            if seen_directed[t]:
+                # Solve using the directed DAG
+                best_count, best_path = solve_dag(adj_directed, R, s, t, n)
+                if best_count is None:
+                    pass  # Fall through to !?
+                elif best_count == -1:
+                    print(-1)
+                    return
+                else:
+                    print(best_count)
+                    if best_path:
+                        path_names = [names[v] for v in best_path]
+                        print(" ".join(path_names))
+                    return
+    
     # For all other graphs (not tree, not DAG), output !? (unsolved)
     print("!?")
 
