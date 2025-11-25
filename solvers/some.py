@@ -18,36 +18,25 @@ Behavior:
 - You can force all edges to be treated as directed with --force-directed.
 
 Implementation:
-Ford-Fulkerson (Edmonds-Karp) with vertex splitting to ensure simple paths.
-This approach guarantees that paths found are simple (no repeated vertices) by modeling
-vertex capacities as edge capacities in a flow network.
-
-Key steps:
-1. Vertex splitting: Each vertex v is split into v_in (index v) and v_out (index v+n),
-   connected by an edge with capacity 1. This ensures each vertex can be used at most once.
-2. Edge transformation: Original edges (u,v) become u_out -> v_in with capacity 1.
-3. Flow network: Source is s_out (s+n), sink is t_in (t). We seek a flow of 1 from source to sink.
-4. Augmenting paths: Use BFS (Edmonds-Karp) to find augmenting paths in the residual graph.
-   Each augmenting path corresponds to a simple s-t path in the original graph.
-5. Red vertex check: For each augmenting path found, check if it includes at least one red vertex.
-   If a direct path doesn't use red, we check for paths s->r->t for each red vertex r,
-   ensuring the combined path is simple by blocking vertices used in the first segment.
+Uses polynomial-time algorithms only for special cases:
+- Trees: Find unique s-t path, check if it includes any red vertex. O(n).
+- DAGs: Dynamic programming to check if path with red exists. O(n + m).
+- All other graphs: Output "!?" (unsolved).
 
 Output:
-- Prints "true" and a sample path (vertex names) if one exists.
-- Prints "false" otherwise.
+- Prints "true" and a sample path if one exists (for solved cases).
+- Prints "false" if no such path exists (for solved cases).
+- Prints "!?" for unsolved cases.
 """
 import argparse
 from collections import deque
-from typing import List, Set, Tuple
+from typing import List, Set, Tuple, Optional
 import sys
 import re
 
 def read_graph_name_format(fname):
     with open(fname, "r", encoding="utf-8") as f:
-        # read non-empty lines preserving order
         lines = [line.rstrip("\n") for line in f.readlines()]
-    # strip BOM / whitespace lines
     lines = [ln.strip() for ln in lines if ln.strip() != ""]
 
     if len(lines) < 2:
@@ -74,31 +63,24 @@ def read_graph_name_format(fname):
     R_names = set()
     name_to_idx = {}
     for i, vl in enumerate(vertex_lines):
-        # vertex name may be like "purls *" or "purls*"? spec says followed by " *"
-        # accept both "name *" and "name*" just in case
         if vl.endswith("*"):
-            # trim trailing '*' and whitespace
             base = vl[:-1].strip()
             names.append(base)
             R_names.add(base)
         else:
             names.append(vl)
-    # Build mapping
     for i, nm in enumerate(names):
         name_to_idx[nm] = i
 
-    # Validate r_count matches discovered red count (best-effort warning)
     if len(R_names) != r_count:
-        # not fatal — data sometimes inconsistent; warn
         print(f"warning: r_count={r_count} but found {len(R_names)} red markers in vertex list", file=sys.stderr)
 
     # remaining lines are edges
     edge_lines = lines[2+n:]
     if len(edge_lines) < m:
-        # allow fewer only if m==0; otherwise error
         if m != 0:
             raise ValueError(f"Expected {m} edge lines but file has {len(edge_lines)}")
-    edges = []  # list of (u_idx, v_idx, directed_bool)
+    edges = []
     edge_re_arrow = re.compile(r'^\s*([_a-z0-9]+)\s*(->|--)\s*([_a-z0-9]+)\s*$')
     for el in edge_lines[:m]:
         mo = edge_re_arrow.match(el)
@@ -113,206 +95,187 @@ def read_graph_name_format(fname):
 
     return n, m, s_name, t_name, names, R_names, edges
 
-def build_adj_from_edges(n, edges, force_directed=False):
+def build_adj(n, edges, force_directed=False):
+    """Build adjacency list from edges."""
     adj = [[] for _ in range(n)]
-    rev = [[] for _ in range(n)]
     for u, v, directed in edges:
         if force_directed:
-            # treat every edge as directed u->v
             adj[u].append(v)
-            rev[v].append(u)
         else:
             if directed:
                 adj[u].append(v)
-                rev[v].append(u)
             else:
-                adj[u].append(v); adj[v].append(u)
-                rev[u].append(v); rev[v].append(u)
-    return adj, rev
+                adj[u].append(v)
+                adj[v].append(u)
+    return adj
 
-def build_flow_network(n, adj, s, t):
-    """
-    Build flow network with vertex splitting to ensure simple paths.
-    Each vertex v becomes v_in (index v) and v_out (index v + n).
-    - v_in -> v_out has capacity 1 (vertex capacity)
-    - Original edge (u,v) becomes u_out -> v_in with capacity 1
-    - Source is s_out (s + n), sink is t_in (t)
-    Returns: flow_adj (adjacency list for flow network), capacities dict
-    """
-    # Flow network has 2*n nodes: 0..n-1 are v_in, n..2*n-1 are v_out
-    flow_n = 2 * n
-    flow_adj = [[] for _ in range(flow_n)]
-    capacities = {}  # (u, v) -> capacity
+def is_connected(adj, n, s, t):
+    """Check if t is reachable from s using BFS."""
+    if s == t:
+        return True
+    visited = [False] * n
+    q = deque([s])
+    visited[s] = True
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if v == t:
+                return True
+            if not visited[v]:
+                visited[v] = True
+                q.append(v)
+    return False
+
+def is_tree(adj, n):
+    """Check if graph is a tree: connected and m = n-1."""
+    m = sum(len(adj[i]) for i in range(n))
+    if n == 0:
+        return True
+    if m != 2 * (n - 1):  # For undirected, each edge counted twice
+        return False
     
-    # Vertex splitting: v_in -> v_out with capacity 1
-    for v in range(n):
-        v_in = v
-        v_out = v + n
-        flow_adj[v_in].append(v_out)
-        capacities[(v_in, v_out)] = 1
+    # Check connectivity
+    visited = [False] * n
+    stack = [0]
+    visited[0] = True
+    count = 1
     
-    # Original edges: u_out -> v_in with capacity 1
+    while stack:
+        u = stack.pop()
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                stack.append(v)
+                count += 1
+    
+    return count == n
+
+def solve_tree(adj, R, s, t, n):
+    """Solve SOME for tree: find unique s-t path and check if it includes red. O(n)."""
+    visited = [False] * n
+    path = []
+    found = False
+    
+    def dfs(u, target):
+        nonlocal found
+        if found:
+            return
+        visited[u] = True
+        path.append(u)
+        if u == target:
+            found = True
+            return
+        for v in adj[u]:
+            if not visited[v]:
+                dfs(v, target)
+                if found:
+                    return
+        if not found:
+            path.pop()
+    
+    dfs(s, t)
+    
+    if not found:
+        return False, None
+    
+    # Check if path includes any red vertex
+    has_red = any(v in R for v in path)
+    return has_red, path
+
+def is_dag(adj, n):
+    """Check if graph is a DAG using DFS cycle detection."""
+    visited = [False] * n
+    rec_stack = [False] * n
+    
+    def has_cycle(v):
+        visited[v] = True
+        rec_stack[v] = True
+        for u in adj[v]:
+            if not visited[u]:
+                if has_cycle(u):
+                    return True
+            elif rec_stack[u]:
+                return True
+        rec_stack[v] = False
+        return False
+    
+    for i in range(n):
+        if not visited[i]:
+            if has_cycle(i):
+                return False
+    return True
+
+def solve_dag(adj, R, s, t, n):
+    """Solve SOME for DAG using dynamic programming. O(n + m).
+    Returns (True, path) if path with red exists, (False, None) if path exists but no red, 
+    (None, None) if no path exists.
+    """
+    # Topological sort using Kahn's algorithm
+    in_degree = [0] * n
     for u in range(n):
         for v in adj[u]:
-            u_out = u + n
-            v_in = v
-            flow_adj[u_out].append(v_in)
-            capacities[(u_out, v_in)] = 1
+            in_degree[v] += 1
     
-    # Source is s_out, sink is t_in
-    source = s + n  # s_out
-    sink = t  # t_in
-    
-    return flow_adj, capacities, source, sink
-
-def find_augmenting_path(flow_adj, capacities, flow, source, sink, n, R):
-    """
-    Find augmenting path using BFS (Edmonds-Karp).
-    Returns path if found, None otherwise.
-    Also tracks if path uses any red vertex.
-    """
-    parent = [-1] * len(flow_adj)
-    visited = [False] * len(flow_adj)
-    q = deque([source])
-    visited[source] = True
-    parent[source] = -1
+    q = deque([i for i in range(n) if in_degree[i] == 0])
+    topo_order = []
     
     while q:
         u = q.popleft()
-        if u == sink:
-            # Reconstruct path
-            path = []
-            cur = sink
-            while cur != -1:
-                path.append(cur)
-                cur = parent[cur]
-            path.reverse()
-            return path
-        for v in flow_adj[u]:
-            # Check if there's residual capacity
-            residual = capacities.get((u, v), 0) - flow.get((u, v), 0)
-            if residual > 0 and not visited[v]:
-                visited[v] = True
-                parent[v] = u
+        topo_order.append(u)
+        for v in adj[u]:
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
                 q.append(v)
-    return None
-
-def extract_vertex_path(path, n, source, sink):
-    """Extract original vertex path from flow network path.
-    Path goes from source (v_out node) to sink (v_in node).
-    We extract all v_in nodes visited, plus the source vertex if source is v_out.
-    """
-    actual_path = []
-    seen = set()
     
-    # If source is a v_out node (>= n), add the corresponding v_in
-    if source >= n:
-        source_vertex = source - n
-        actual_path.append(source_vertex)
-        seen.add(source_vertex)
+    if len(topo_order) != n:
+        return None, None  # Not a DAG (shouldn't happen if is_dag is correct)
     
-    # Add all v_in nodes in the path
-    for node in path:
-        if node < n:  # v_in node
-            v = node
-            if v not in seen:
-                actual_path.append(v)
-                seen.add(v)
+    # DP: dp[v] = True if there exists a path from s to v that includes at least one red vertex
+    #     reachable[v] = True if v is reachable from s
+    dp = [False] * n
+    reachable = [False] * n
+    parent = [-1] * n
     
-    return actual_path
-
-def ford_fulkerson_some(n, adj, s, t, R) -> Tuple[bool, List[int]]:
-    """
-    Ford-Fulkerson (Edmonds-Karp) to find simple s-t path that includes at least one red vertex.
-    Uses vertex splitting to ensure simple paths.
-    Strategy: Find augmenting paths until we find one that uses a red vertex.
-    """
-    flow_adj, capacities, source, sink = build_flow_network(n, adj, s, t)
-    flow = {}  # (u, v) -> flow value
+    s_pos = topo_order.index(s) if s in topo_order else -1
+    if s_pos == -1:
+        return None, None
     
-    # Try to find augmenting paths, checking each for red vertex usage
-    # Limit to n iterations: Edmonds-Karp is O(VE²) for max flow, but we only need one path
-    # Each BFS takes O(E), so with n iterations we get O(n·E) = O(n·m) complexity
-    max_iterations = n
+    reachable[s] = True
+    if s in R:
+        dp[s] = True
     
-    for iteration in range(max_iterations):
-        path = find_augmenting_path(flow_adj, capacities, flow, source, sink, n, R)
-        if path is None:
-            # No more augmenting paths
-            break
+    # Process vertices in topological order starting from s
+    for i in range(s_pos, n):
+        u = topo_order[i]
+        if not reachable[u]:
+            continue
         
-        # Extract original vertex path and check if it uses red
-        path_original = extract_vertex_path(path, n, source, sink)
-        uses_red = any(v in R for v in path_original)
-        
-        # Augment flow along this path
-        min_capacity = float('inf')
-        for i in range(len(path) - 1):
-            u, v = path[i], path[i+1]
-            cap = capacities.get((u, v), 0)
-            min_capacity = min(min_capacity, cap)
-        
-        # Update flow
-        for i in range(len(path) - 1):
-            u, v = path[i], path[i+1]
-            flow[(u, v)] = flow.get((u, v), 0) + min_capacity
-            flow[(v, u)] = flow.get((v, u), 0) - min_capacity
-        
-        # If this path uses a red vertex, we're done!
-        if uses_red:
-            return True, path_original
+        for v in adj[u]:
+            if not reachable[v]:
+                reachable[v] = True
+                parent[v] = u  # Track parent for all reachable vertices
+            # Path from s to v has red if: path to u has red OR v is red
+            if (dp[u] or v in R) and not dp[v]:
+                dp[v] = True
+                parent[v] = u  # Update parent when we find path with red
     
-    # If we exhausted all augmenting paths and none used red, check if there's
-    # a path s -> r -> t for any red r (ensuring simple path overall)
-    # We do this by checking if we can find a simple path from s to r and from r to t
-    # that don't share any vertices (except r)
-    for r in R:
-        # Check if there's a simple path s -> r -> t
-        # Build flow network from s to r, and from r to t
-        # If both have flow > 0 and the paths don't share vertices (except r), we're done
-        
-        # Check s -> r path
-        flow_sr, capacities_sr, source_sr, sink_sr = build_flow_network(n, adj, s, r)
-        flow_sr_dict = {}
-        path_sr = find_augmenting_path(flow_sr, capacities_sr, flow_sr_dict, source_sr, sink_sr, n, R)
-        if path_sr is None:
-            continue  # No path from s to r
-        
-        # Check r -> t path, but we need to avoid vertices used in s->r path (except r)
-        path_sr_vertices = set(extract_vertex_path(path_sr, n, source_sr, sink_sr))
-        path_sr_vertices.discard(r)  # Remove r, it's allowed in both paths
-        
-        # Build flow network for r->t, but block vertices used in s->r (except r)
-        # We can do this by setting capacities to 0 for those vertices' in->out edges
-        flow_rt, capacities_rt, source_rt, sink_rt = build_flow_network(n, adj, r, t)
-        # Block vertices used in s->r path (except r itself)
-        for v in path_sr_vertices:
-            v_in = v
-            v_out = v + n
-            capacities_rt[(v_in, v_out)] = 0  # Block this vertex
-        
-        flow_rt_dict = {}
-        path_rt = find_augmenting_path(flow_rt, capacities_rt, flow_rt_dict, source_rt, sink_rt, n, R)
-        if path_rt is None:
-            continue  # No path from r to t avoiding s->r vertices
-        
-        # Combine paths: s->r->t
-        path_sr_orig = extract_vertex_path(path_sr, n, source_sr, sink_sr)
-        path_rt_orig = extract_vertex_path(path_rt, n, source_rt, sink_rt)
-        # Combine paths: path_sr_orig should end with r, path_rt_orig should start with r
-        # Remove duplicate r when combining
-        if path_sr_orig and path_sr_orig[-1] == r:
-            combined_path = path_sr_orig[:-1] + path_rt_orig
-        else:
-            # If r not at end of first path, just combine (r should be in both)
-            combined_path = path_sr_orig + [v for v in path_rt_orig if v != r]
-        return True, combined_path
+    if not reachable[t]:
+        return None, None  # No path from s to t
     
-    # If no augmenting path found at all, no s-t path exists
-    return False, []
+    if dp[t]:
+        # Reconstruct path with red
+        path = []
+        cur = t
+        while cur != -1:
+            path.append(cur)
+            cur = parent[cur]
+        path.reverse()
+        return True, path
+    else:
+        return False, None
 
 def main():
-    parser = argparse.ArgumentParser(description="SOME: does there exist an s-t path that includes at least one vertex from R? (name-based format)")
+    parser = argparse.ArgumentParser(description="SOME: does there exist an s-t path that includes at least one vertex from R? (polynomial-time only)")
     parser.add_argument("input", help="input file (name-based format)")
     parser.add_argument("--force-directed", action="store_true",
                         help="treat every edge as directed u->v (ignores '--' undirected marker)")
@@ -325,17 +288,48 @@ def main():
         sys.exit(2)
 
     name_to_idx = {nm:i for i,nm in enumerate(names)}
-    s_idx = name_to_idx[s_name]; t_idx = name_to_idx[t_name]
+    s_idx = name_to_idx[s_name]
+    t_idx = name_to_idx[t_name]
     R_idx_set = set(name_to_idx[nm] for nm in R_names if nm in name_to_idx)
 
-    adj, _ = build_adj_from_edges(n, edges, force_directed=args.force_directed)
-
-    ok, path_idx = ford_fulkerson_some(n, adj, s_idx, t_idx, R_idx_set)
-    if ok:
-        print("true")
-        print(" ".join(names[i] for i in path_idx))
-    else:
+    adj = build_adj(n, edges, force_directed=args.force_directed)
+    
+    # Check if t is reachable from s
+    if not is_connected(adj, n, s_idx, t_idx):
         print("false")
+        return
+    
+    # Check for special cases (polynomial-time solvers only)
+    
+    # 1. Check if it's a tree
+    if is_tree(adj, n):
+        has_red, path = solve_tree(adj, R_idx_set, s_idx, t_idx, n)
+        if path is None:
+            print("false")
+        elif has_red:
+            print("true")
+            path_names = [names[v] for v in path]
+            print(" ".join(path_names))
+        else:
+            print("false")
+        return
+    
+    # 2. Check if it's a DAG (only makes sense if all edges are directed)
+    all_directed = all(directed for _, _, directed in edges) or args.force_directed
+    if all_directed and is_dag(adj, n):
+        result, path = solve_dag(adj, R_idx_set, s_idx, t_idx, n)
+        if result is None:
+            print("false")  # No path exists
+        elif result:
+            print("true")
+            path_names = [names[v] for v in path]
+            print(" ".join(path_names))
+        else:
+            print("false")
+        return
+    
+    # 3. For all other graphs, output !? (unsolved)
+    print("!?")
 
 if __name__ == "__main__":
     main()

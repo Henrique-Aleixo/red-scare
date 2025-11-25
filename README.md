@@ -18,18 +18,22 @@ The Red Scare problem involves finding paths in a graph with special constraints
 red-scare/
 ├── solvers/          # Problem solvers
 │   ├── none.py       # NONE problem solver (BFS-based)
-│   ├── some.py       # SOME problem solver (Ford-Fulkerson with vertex splitting)
+│   ├── some.py       # SOME problem solver (polynomial-time only: trees & DAGs)
+│   ├── some_ff.py    # SOME problem solver (Ford-Fulkerson with verification)
 │   ├── few.py        # FEW problem solver (Dijkstra with vertex splitting)
 │   ├── many.py       # MANY problem solver (NP-hard, polynomial-time only: trees & DAGs)
 │   └── alternate.py  # ALTERNATE problem solver (BFS on filtered graph)
 ├── data/             # Test instances (154 instances)
 ├── doc/              # Documentation and strategy plans
-├── run_none_all.py   # Batch runner for NONE
-├── run_some_all.py   # Batch runner for SOME
-├── run_few_all.py    # Batch runner for FEW
-├── run_many_all.py   # Batch runner for MANY
-├── run_alternate_all.py  # Batch runner for ALTERNATE
-└── results.txt       # Results summary for all instances
+├── run_none_all.py      # Batch runner for NONE
+├── run_some_all.py      # Batch runner for SOME (polynomial-time only)
+├── run_some_ff_all.py   # Batch runner for SOME (Ford-Fulkerson)
+├── run_few_all.py       # Batch runner for FEW
+├── run_many_all.py      # Batch runner for MANY
+├── run_alternate_all.py # Batch runner for ALTERNATE
+├── compare_some_approaches.py  # Compare polynomial vs Ford-Fulkerson approaches
+├── comprehensive_test_some.py  # Comprehensive test suite for SOME
+└── results.txt          # Results summary for all instances
 ```
 
 ## Input Format
@@ -61,7 +65,11 @@ See `data/README.md` for detailed format specification.
 python solvers/none.py data/instance.txt
 
 # SOME: check if path with red vertex exists
+# Option 1: Polynomial-time only (trees and DAGs)
 python solvers/some.py data/instance.txt
+
+# Option 2: Ford-Fulkerson with verification (recommended)
+python solvers/some_ff.py data/instance.txt
 
 # FEW: path minimizing red vertices
 python solvers/few.py data/instance.txt
@@ -80,7 +88,11 @@ python solvers/alternate.py data/instance.txt
 python run_none_all.py
 
 # Run SOME solver on all instances
+# Polynomial-time only (trees and DAGs)
 python run_some_all.py
+
+# Ford-Fulkerson with verification (recommended)
+python run_some_ff_all.py
 
 # Run FEW solver on all instances
 python run_few_all.py
@@ -100,9 +112,42 @@ python run_alternate_all.py
 - **Implementation**: BFS from s to t, avoiding red vertices (except s and t are allowed even if red). We mark all internal red vertices as forbidden and run standard BFS to find the shortest path.
 
 ### SOME Problem
-- **Complexity**: O(n·m) - Polynomial (Edmonds-Karp typically O(VE²) for max flow, but we only need one path so limit to n augmenting paths)
-- **Algorithm**: Ford-Fulkerson (Edmonds-Karp) with vertex splitting to find simple paths
-- **Implementation**: Uses network flow with vertex splitting to guarantee simple paths (no repeated vertices). Each vertex v is split into v_in and v_out connected by a capacity-1 edge, ensuring each vertex is used at most once. Original edges become u_out → v_in. We find augmenting paths using BFS and check if they include at least one red vertex. If no direct path uses red, we check for paths s→r→t for each red vertex r, ensuring the combined path is simple by blocking vertices used in the first segment. This approach correctly handles the simple path requirement that was problematic in naive BFS implementations.
+- **Complexity**: NP-hard (sophisticated hardness argument in literature - see Dinitz & Shimony, arXiv:2302.09614)
+- **Problem Statement**: Determine if there exists a simple s-t path that includes at least one red vertex
+- **Two Approaches Implemented**:
+
+#### Approach 1: Polynomial-Time Only (`some.py`)
+- **Complexity**: O(n + m) for trees, O(n + m) for DAGs
+- **Coverage**: 48/154 instances (31.2%)
+- **Algorithm**: Only solves trees and DAGs
+- **Implementation**: 
+  - **Trees**: DFS to find unique s-t path, check if it includes red
+  - **DAGs**: Topological sort + dynamic programming to find path with red
+  - **Other graphs**: Returns "!?" (unsolved)
+- **Guarantee**: 100% correctness for solved cases
+
+#### Approach 2: Ford-Fulkerson with Verification (`some_ff.py`) - **Recommended**
+- **Complexity**: O(|R| · VE²) - Polynomial-time (where |R| is number of red vertices)
+- **Coverage**: 128/154 instances with verified results (83.1%)
+  - True (verified): 104 instances (67.5%)
+  - False (verified): 24 instances (15.6%)
+  - !? (unverified): 26 instances (16.9%)
+- **Algorithm**: Ford-Fulkerson (Edmonds-Karp) with vertex splitting, based on professor's feedback
+- **Implementation Details**:
+  - **Vertex Splitting**: Each vertex v becomes v_in and v_out connected by capacity-1 edge (ensures simple paths)
+  - **Professor's Approach**: For each red vertex r individually:
+    1. Find path s → r (target r_in)
+    2. If found, find path r → t (start from r_out, block vertices from s→r)
+    3. If both found, return true with combined path
+  - **Verification-Based**: Only returns "true"/"false" when verifiable:
+    - **"true"**: Path with red found (verifiable - path includes red)
+    - **"false"**: No s-t path exists (verifiable - checked with BFS)
+    - **"!?"**: Cannot verify (path exists but no red found - can't prove one doesn't exist)
+- **Why This Works**: Handles each red vertex individually to avoid blocking issues from handling all reds at once
+- **Limitations**: May miss valid solutions when the first path s→r blocks path r→t (e.g., wall problems)
+- **Theoretical Note**: Problem is NP-hard, so perfect correctness is impossible with polynomial-time. This approach works well in practice (83% verified coverage) while being honest about uncertainty.
+
+**Literature Reference**: "On Existence of Must-Include Paths and Cycles in Undirected Graphs" by Yefim Dinitz and Solomon Eyal Shimony (arXiv:2302.09614, 2023)
 
 ### FEW Problem
 - **Complexity**: O((n + m) log n) - Polynomial
@@ -188,8 +233,8 @@ The solvers were tested on **154 instances** across 9 problem groups. Results ar
 | **rusty** | 17 | 17/17 | 17/17 | 3/17 | 17/17 | 17/17 |
 | **ski** | 13 | 13/13 | 13/13 | 13/13 | 13/13 | 13/13 |
 | **smallworld** | 12 | 12/12 | 12/12 | 0/12 | 12/12 | 12/12 |
-| **wall** | 24 | 24/24 | 24/24 | 0/24 | 24/24 | 24/24 |
-| **TOTAL** | **154** | **154/154** | **154/154** | **54/154** | **154/154** | **154/154** |
+| **wall** | 24 | 24/24 | 24/24 | 0/24 | 0/24 (!?) | 24/24 |
+| **TOTAL** | **154** | **154/154** | **154/154** | **54/154** | **128/154** (83.1% verified) | **154/154** |
 
 ### Notes on Results
 
@@ -203,11 +248,20 @@ The solvers were tested on **154 instances** across 9 problem groups. Results ar
   - 24 instances (15.6%) returned `-1` (no valid path exists, which is a valid answer)
   - All instances solved optimally using Dijkstra's algorithm
   
-- **SOME**: 100% success rate (154/154 instances)
-  - 107 instances (69.5%) returned `true` (path with at least one red vertex exists)
-  - 47 instances (30.5%) returned `false` (no such path exists)
-  - All instances solved using Ford-Fulkerson (Edmonds-Karp) with vertex splitting
-  - This implementation correctly ensures simple paths, fixing a bug in the previous BFS approach
+- **SOME**: Two approaches implemented
+  - **Polynomial-Time Only** (`some.py`): 48/154 instances (31.2%)
+    - Only solves trees and DAGs
+    - Returns "!?" for other graphs
+    - 100% correctness for solved cases
+  - **Ford-Fulkerson with Verification** (`some_ff.py`) - **Recommended**: 128/154 instances with verified results (83.1%)
+    - 104 instances (67.5%) returned `true` (path with red found - verified)
+    - 24 instances (15.6%) returned `false` (no s-t path exists - verified)
+    - 26 instances (16.9%) returned `!?` (cannot verify - path exists but no red found)
+    - Uses Ford-Fulkerson (Edmonds-Karp) with vertex splitting
+    - Based on professor's feedback: handles each red vertex individually
+    - Verification-based: only returns "true"/"false" when verifiable
+    - Honest about uncertainty: returns "!?" when can't verify correctness
+    - Note: Problem is NP-hard, so perfect correctness is impossible with polynomial-time
   
 - **ALTERNATE**: 100% success rate (154/154 instances)
   - 56 instances (36.4%) returned `true` (alternating path exists)
@@ -227,10 +281,30 @@ The solvers were tested on **154 instances** across 9 problem groups. Results ar
 **Result Codes:**
 - **Numbers**: Optimal or best-found solution (number of red vertices)
 - **`-1`**: Valid answer meaning "no valid path exists" (counts as solved)
-- **`!?`**: Timeout or unable to solve within time limit (does NOT count as solved)
+- **`!?`**: Unable to solve or cannot verify result (does NOT count as solved for MANY, indicates uncertainty for SOME)
 - **`true`/`false`**: Boolean result for SOME and ALTERNATE problems
+  - For SOME (Ford-Fulkerson): `true`/`false` means verified result, `!?` means cannot verify
 
 See `results.txt` for detailed per-instance results.
+
+## Documentation
+
+Detailed documentation for the SOME problem:
+- `doc/SOME_Problem_Complete.md` - Complete documentation of SOME problem implementation
+- `doc/Professor_Feedback_Analysis.md` - Analysis of professor's feedback and approach
+- `doc/SOME_Literature_References.md` - Literature references for NP-hardness
+- `doc/Wall_Problem_Analysis.md` - Analysis of why wall problems return "!?"
+
+## Testing
+
+Comprehensive test suite for SOME problem:
+```bash
+# Run comprehensive tests (includes professor's example)
+python comprehensive_test_some.py
+
+# Compare polynomial vs Ford-Fulkerson approaches
+python compare_some_approaches.py
+```
 
 ## Requirements
 
