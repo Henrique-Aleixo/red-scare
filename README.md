@@ -186,7 +186,7 @@ python run_alternate_all.py
 
 - **Algorithm Overview**: Polynomial-time solutions only for well-defined graph classes. For all other instances, outputs "!?" (unsolved).
 
-- **Polynomial-Time Special Cases**:
+- **Polynomial-Time Cases**:
   1. **Trees** (O(n))
      - Check: connected graph with m = 2(n-1) edges (undirected) or m = n-1 edges (directed)
      - Handles both undirected trees and directed trees (arborescences)
@@ -203,17 +203,15 @@ python run_alternate_all.py
   
   3. **All Other Graphs**
      - Output "!?" (unsolved) - no polynomial-time solution implemented
-     - This ensures we only use polynomial-time algorithms as required
+     - Only use polynomial-time algorithms as required
 
 - **Implementation Details**: 
   - Uses only polynomial-time algorithms (trees: O(n), DAGs: O(n+m))
-  - Enhanced tree detection: handles both directed and undirected trees
-  - Enhanced DAG detection: tries force-directed conversion for undirected graphs
+  - Tree detection: handles both directed and undirected trees
+  - DAG detection: tries force-directed conversion for undirected graphs
   - Iterative DFS for cycle detection (avoids recursion depth limits on large graphs)
-  - Handles graphs with up to 80,000 vertices without stack overflow
   - No exact solvers or heuristics - strictly polynomial-time only
-  - All methods respect simple path constraints (no repeated vertices)
-  - For instances that are neither trees nor DAGs, correctly identifies as unsolved
+  - Respects simple path constraints (no repeated vertices)
 
 ## Results
 
@@ -231,7 +229,7 @@ The solvers were tested on **154 instances** across 9 problem groups. Results ar
 | **rusty** | 17 | 17/17 | 17/17 | 3/17 | 17/17 | 17/17 |
 | **ski** | 13 | 13/13 | 13/13 | 13/13 | 13/13 | 13/13 |
 | **smallworld** | 12 | 12/12 | 12/12 | 0/12 | 12/12 | 12/12 |
-| **wall** | 24 | 24/24 | 24/24 | 0/24 | 0/24 (!?) | 24/24 |
+| **wall** | 24 | 24/24 | 24/24 | 0/24 | 0/24 | 24/24 |
 | **TOTAL** | **154** | **154/154** | **154/154** | **54/154** | **128/154** | **154/154** |
 
 ### Notes on Results
@@ -239,40 +237,26 @@ The solvers were tested on **154 instances** across 9 problem groups. Results ar
 - **NONE**: 100% success rate (154/154 instances)
   - 113 instances (73.4%) found a solution (path length)
   - 41 instances (26.6%) returned `-1` (no valid path exists)
-  - All instances solved using BFS
   
 - **FEW**: 100% success rate (154/154 instances)
   - 130 instances (84.4%) found a solution (minimum red vertices)
   - 24 instances (15.6%) returned `-1` (no valid path exists)
-  - All instances solved optimally using Dijkstra's algorithm
   
 - **SOME**: Two approaches implemented
-  - **Polynomial-Time** (`some.py`): 48/154 instances (31.2%)
-    - Solves trees and DAGs
-    - Returns "!?" for other graphs
-    - 100% correctness for solved cases
+  - **Polynomial-Time** (`some.py`): 48/154 instances (31.2% success rate)
   - **Ford-Fulkerson with Verification** (`some_ff.py`): 128/154 instances with verified results (83.1%)
     - 104 instances (67.5%) returned `true` (path with red found - verified)
     - 24 instances (15.6%) returned `false` (no s-t path exists - verified)
     - 26 instances (16.9%) returned `!?` (cannot verify - path exists but no red found)
-    - Uses Ford-Fulkerson (Edmonds-Karp) with vertex splitting
-    - Handles each red vertex individually
-    - Verification-based: only returns "true"/"false" when verifiable
-    - Uncertainty: returns "!?" when can't verify correctness
   
 - **ALTERNATE**: 100% success rate (154/154 instances)
   - 56 instances (36.4%) returned `true` (alternating path exists)
   - 98 instances (63.6%) returned `false` (no alternating path exists)
-  - All instances solved using BFS on filtered graph (only edges with exactly one red endpoint)
-  - The algorithm correctly identifies alternating paths by filtering non-alternating edges
   
 - **MANY**: 35.1% success rate (54/154 instances)
   - 30 instances (19.5%) found a solution (maximum red vertices) - trees and DAGs only
   - 24 instances (15.6%) returned `-1` (no valid path exists, which is a valid answer)
-  - 100 instances (64.9%) marked as `!?` (unsolved - not trees or DAGs, does NOT count as solved)
-  - Uses only polynomial-time algorithms: trees (O(n)) and DAGs (O(n+m))
-  - Iterative DFS implementation handles large graphs
-  - No exact solvers or heuristics - strictly polynomial-time solutions only
+  - 100 instances (64.9%) marked as `!?` unsolved
 
 **Result Codes:**
 - **Numbers**: Optimal or best-found solution (number of red vertices)
