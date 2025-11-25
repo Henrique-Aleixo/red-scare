@@ -2,7 +2,7 @@
 
 ## Primary Reference (Sophisticated Hardness Argument)
 
-The professor mentioned that a "sophisticated hardness argument exists in the research literature" for the SOME problem. Based on research, the most relevant reference is:
+A sophisticated hardness argument exists in the research literature for the SOME problem. The most relevant reference is:
 
 ### "On Existence of Must-Include Paths and Cycles in Undirected Graphs"
 - **Authors**: Yefim Dinitz and Solomon Eyal Shimony
@@ -10,7 +10,7 @@ The professor mentioned that a "sophisticated hardness argument exists in the re
 - **Year**: 2023
 - **Link**: https://arxiv.org/abs/2302.09614
 
-This paper investigates the complexity of finding paths and cycles that must include certain vertices in undirected graphs. It provides necessary and sufficient conditions for the existence of such paths and develops efficient algorithms for related problems. This appears to be the sophisticated hardness argument the professor referenced.
+This paper investigates the complexity of finding paths and cycles that must include certain vertices in undirected graphs. It provides necessary and sufficient conditions for the existence of such paths and develops efficient algorithms for related problems.
 
 ## Related Problems and References
 

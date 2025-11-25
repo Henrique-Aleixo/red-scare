@@ -1,10 +1,10 @@
-# Professor's Feedback Analysis: SOME Problem
+# SOME Problem Approach Analysis
 
-## What the Professor is Saying
+## Problem Identification
 
 ### 1. **Debug First - Find Concrete Failures**
 
-The professor wants us to:
+To improve the algorithm:
 - Find specific instances where we **know** the algorithm gives incorrect results
 - Trace through the algorithm **by hand** on those instances
 - Determine if it's:
@@ -13,9 +13,9 @@ The professor wants us to:
 
 **Action**: We need to identify test cases where Ford-Fulkerson returns "false" but we can prove a valid path with red exists.
 
-### 2. **His Diagnosis of the Problem**
+### 2. **Problem Diagnosis**
 
-The professor suspects we're doing this (which matches what we identified):
+The issue identified:
 
 ```
 Current (Problematic) Approach:
@@ -41,7 +41,7 @@ If we find paths s→A→r1 and s→B→r2 first:
 - Even though s→A→r1→C→t would work!
 ```
 
-### 3. **His Suggested Fix**
+### 3. **Proposed Solution**
 
 **Option A: Fix the Algorithm Logic**
 
@@ -79,7 +79,7 @@ Instead of changing Ford-Fulkerson, modify the graph:
   - Only solves 31% of instances
   - Might be able to add more special cases (bipartite, bounded treewidth, etc.)
 
-### Option 2: **Fix Ford-Fulkerson Implementation** (Professor's Suggestion)
+### Option 2: **Fix Ford-Fulkerson Implementation**
 - **Pros**: 
   - Should solve more instances correctly
   - Uses polynomial-time algorithm (Ford-Fulkerson is O(VE²))
@@ -103,7 +103,7 @@ Create small graphs where we can verify by hand:
 - Graph where Ford-Fulkerson should return "false" and does
 - Graph where multiple red vertices exist and only some paths work
 
-### Step 2: **Implement Professor's Fix**
+### Step 2: **Implement the Fix**
 
 Modify the algorithm to:
 ```
@@ -125,7 +125,7 @@ For each red vertex r:
 
 ### Step 4: **Decide on Final Approach**
 
-Based on results:
+Based on the results:
 - If Ford-Fulkerson works correctly: Use it for non-special cases
 - If still has issues: Stick with polynomial-time only or hybrid
 

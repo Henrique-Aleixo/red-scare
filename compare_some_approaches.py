@@ -2,7 +2,7 @@
 """
 Compare the two SOME solver approaches:
 1. Polynomial-time only (some.py) - trees and DAGs
-2. Ford-Fulkerson (some_ff.py) - based on professor's feedback
+2. Ford-Fulkerson (some_ff.py)
 
 Run both on all instances and compare results.
 """

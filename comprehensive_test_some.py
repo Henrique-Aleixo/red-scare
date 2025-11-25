@@ -68,9 +68,9 @@ def main():
     
     tests = []
     
-    # Test 1: Edge case from professor's feedback - multiple reds sharing common vertex
+    # Test 1: Edge case - multiple reds sharing common vertex
     tests.append((
-        "edge_case_professor",
+        "edge_case_multiple_reds",
         """7 7 2
 0 6
 0
@@ -88,7 +88,7 @@ def main():
 4 -- 5
 5 -- 6""",
         "true",
-        "Edge case: Multiple red vertices sharing common vertex to t"
+        "Edge case: Multiple red vertices sharing common vertex to t (tests path dependencies)"
     ))
     
     # Test 2: Simple direct path with red

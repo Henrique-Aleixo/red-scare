@@ -78,6 +78,6 @@ The wall problems expose a limitation of our Ford-Fulkerson approach:
 
 This is acceptable because:
 1. The problem is NP-hard - perfect correctness is impossible with polynomial-time
-2. We're honest about uncertainty
+2. The approach is honest about uncertainty
 3. We still solve 83% of instances with verified results
 

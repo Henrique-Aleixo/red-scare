@@ -3,7 +3,7 @@
 some_ff.py
 Problem SOME: does there exist an s-t path that includes at least one vertex from R?
 
-Ford-Fulkerson approach based on professor's feedback:
+Ford-Fulkerson approach:
 - For each red vertex r individually:
   1. Run Ford-Fulkerson to find path s → r (target r_in)
   2. If found, run Ford-Fulkerson to find path r → t (start from r_out)
@@ -265,7 +265,7 @@ def is_connected(adj, n, s, t):
 
 def solve_some_ff(n, adj, s, t, R):
     """
-    Solve SOME problem using Ford-Fulkerson approach based on professor's feedback.
+    Solve SOME problem using Ford-Fulkerson approach.
     
     For each red vertex r:
     1. Find path s → r (target r_in)

@@ -38,11 +38,18 @@ def run_some(instance_path):
         if not output:
             return False, None, "No output from solver"
         
-        # Parse output: first line is "true" or "false"
+        # Parse output: first line is "true", "false", or "!?"
         lines = output.splitlines()
-        answer = lines[0].strip().lower()
+        answer = lines[0].strip()
         
-        if answer not in ["true", "false"]:
+        # Normalize true/false to lowercase, but keep !? as is
+        if answer.lower() == "true":
+            answer = "true"
+        elif answer.lower() == "false":
+            answer = "false"
+        elif answer == "!?":
+            answer = "!?"
+        else:
             return False, None, f"Unexpected output: {answer}"
         
         return True, answer, None

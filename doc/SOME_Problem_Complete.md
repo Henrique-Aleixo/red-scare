@@ -18,17 +18,17 @@ The problem is **NP-hard**. A sophisticated hardness argument exists in the rese
 - **Guarantee**: 100% correctness for solved cases
 - **Output**: "!?" for unsolved cases
 
-### 2. Ford-Fulkerson (`some_ff.py`) - Based on Professor's Feedback
+### 2. Ford-Fulkerson (`some_ff.py`)
 - **Algorithm**: Ford-Fulkerson with vertex splitting
 - **Coverage**: 128/154 instances with verified results (83.1%)
 - **Complexity**: O(|R| * VE²) - polynomial-time
 - **Output**: "true"/"false" when verifiable, "!?" otherwise
 
-## Professor's Feedback and Implementation
+## Implementation Approach
 
 ### The Problem Identified
 
-The professor identified that the original approach had issues:
+The original approach had issues:
 - Finding all s→R paths first, then R→t paths, can block vertices needed for valid paths
 - Example: If we find paths s→A→r1 and s→B→r2 first, we block A and B, which might prevent finding valid r1→t or r2→t paths
 
@@ -68,7 +68,7 @@ We only return "true" or "false" when we can **verify** correctness:
 ## Comprehensive Testing
 
 All 10 edge cases pass, including:
-1. ✅ **Professor's example**: Multiple red vertices sharing common vertex to t
+1. ✅ **Multiple red vertices sharing common vertex to t**: Test case verifies algorithm handles complex path dependencies
 2. ✅ Simple direct path with red
 3. ✅ Path must go s→r→t
 4. ✅ Cases where we can't verify (correctly returns !?)
@@ -120,14 +120,14 @@ The problem is **NP-hard**, which means:
 
 ### What We're Actually Doing
 
-We're **not** solving an NP-hard problem correctly for 100% of cases. Instead:
+The approach is **not** solving an NP-hard problem correctly for 100% of cases. Instead:
 - **For cases where we find a path**: We return "true" (verifiable)
 - **For cases where no s-t path exists**: We return "false" (verifiable)
 - **For cases where path exists but no red found**: We return "!?" (can't verify)
 
 This is acceptable because:
 1. The problem is NP-hard, so perfect correctness is impossible with polynomial-time
-2. We're honest about uncertainty (return "!?" when can't verify)
+2. The approach is honest about uncertainty (returns "!?" when can't verify)
 3. We verify correctness when possible (83% of cases)
 
 ## Files
@@ -137,12 +137,12 @@ This is acceptable because:
 - `solvers/some_ff.py`: Ford-Fulkerson with verification (recommended)
 
 ### Testing
-- `comprehensive_test_some.py`: Comprehensive test suite with professor's example
+- `comprehensive_test_some.py`: Comprehensive test suite
 - `compare_some_approaches.py`: Comparison script for both approaches
 
 ### Documentation
 - `doc/SOME_Problem_Complete.md`: This file (complete documentation)
-- `doc/Professor_Feedback_Analysis.md`: Detailed analysis of professor's feedback
+- `doc/SOME_Approach_Analysis.md`: Detailed analysis of the Ford-Fulkerson approach
 - `doc/SOME_Literature_References.md`: Literature references for the report
 
 ## Recommendation
@@ -152,8 +152,8 @@ This is acceptable because:
 It provides:
 - 83% verified coverage (vs 31% for polynomial-only)
 - Honest uncertainty reporting (!? when can't verify)
-- All edge cases pass (including professor's example)
-- Follows professor's guidance
+- All edge cases pass
+- Handles each red vertex individually to avoid blocking issues
 - Polynomial-time efficiency
 
 ## Literature Reference
