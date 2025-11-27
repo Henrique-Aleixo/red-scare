@@ -1,83 +1,44 @@
-# Wall Problem Analysis: Why Ford-Fulkerson Returns "!?"
+# Wall Problem Analysis
 
-## The Problem
+## What's Going On?
 
-All wall-* instances return "!?" instead of "true" or "false". Let's analyze why.
+All the wall-* instances return "!?" instead of a definitive answer. Let's look at why, using wall-n-1.txt as an example.
 
-## Example: wall-n-1.txt
+## The Graph Structure
 
-**Graph structure:**
-- 8 vertices in a cycle: 0-1-2-3-4-5-6-7-0 (with shortcut 0-7)
-- Source: 7, Target: 0
-- Red vertex: 3
+The graph is a cycle with 8 vertices: 0-1-2-3-4-5-6-7-0, with a shortcut edge from 0 to 7. The source is 7, target is 0, and vertex 3 is red. 
 
-**Valid path with red exists:**
-- Path: 7 → 6 → 5 → 4 → 3 → 2 → 1 → 0
-- This path includes red vertex 3
+A valid path with red exists: 7 → 6 → 5 → 4 → 3 → 2 → 1 → 0. This path goes through the red vertex 3.
 
 ## What Our Algorithm Does
 
-1. **Direct path check**: Finds path 7→0 directly (no red) ✓
-2. **Try red vertex r=3**:
-   - **Step 1**: Find path 7→3
-     - Ford-Fulkerson finds: [7, 0, 1, 2, 3]
-     - Uses vertices: {7, 0, 1, 2}
-   - **Step 2**: Find path 3→0 (blocking {7, 0, 1, 2})
-     - ❌ **FAILS**: Path 3→0 needs to go [3, 2, 1, 0], but vertices 2, 1, 0 are blocked!
+When we run Ford-Fulkerson on this instance:
 
-## The Root Cause
+1. First, we check if there's a direct path from 7 to 0. There is (just the shortcut edge), but it doesn't include the red vertex.
 
-**Ford-Fulkerson finds ONE augmenting path**, but it might not be the "right" one.
+2. Then we try to find a path through the red vertex 3:
+   - Step 1: Find path 7→3. Ford-Fulkerson finds [7, 0, 1, 2, 3]
+   - Step 2: Try to find path 3→0, but we block vertices {7, 0, 1, 2} since they were used in the first path
+   - The path 3→0 would need to go [3, 2, 1, 0], but vertices 2, 1, and 0 are all blocked!
 
-In this case:
-- Path 7→3 found: [7, 0, 1, 2, 3] (uses vertices needed for 3→0)
-- Alternative path 7→3 exists: [7, 6, 5, 4, 3] (doesn't block 3→0)
-- But we only try the first path found, and give up when it doesn't work
+So the algorithm fails, even though a valid path exists.
 
 ## Why This Happens
 
-The algorithm's limitation:
-1. For each red vertex r, we find **one** path s→r
-2. If that path blocks r→t, we give up
-3. We don't try alternative paths s→r that might not block r→t
+The problem is that Ford-Fulkerson finds one augmenting path, not necessarily the best one for our purposes. In this case:
+- The path [7, 0, 1, 2, 3] uses vertices that block the path from 3 to 0
+- An alternative path [7, 6, 5, 4, 3] exists that wouldn't block 3→0
+- But we only try the first path found, and when it doesn't work, we move on
 
-## The Solution Would Require
+This is a limitation of our approach - we don't try multiple paths s→r for each red vertex r. We find one, and if it blocks r→t, we give up.
 
-To fix this, we would need to:
-1. Find **all** paths s→r (or at least try multiple)
-2. For each path s→r, try to find path r→t
-3. Return true if any combination works
+## Why This Is Actually OK
 
-But this would require:
-- Enumerating multiple paths (potentially exponential)
-- Or using a more sophisticated flow algorithm
-- Or trying different blocking strategies
-
-## Why We Return "!?"
-
-Since:
-- A path from s to t exists (verified with BFS)
+This behavior is correct for our verification-based approach. Since:
+- A path from s to t exists (we verified with BFS)
 - We couldn't find a path with red using our algorithm
-- But we can't prove that no such path exists (because we might have missed it)
+- But we can't prove that no such path exists (we might have just missed it)
 
-We return "!?" - we can't verify the result.
+We return "!?" - we're honest that we can't verify the answer.
 
-## This is Expected Behavior
-
-This is actually **correct behavior** for our verification-based approach:
-- We can't verify "false" because a path with red might exist (we just didn't find it)
-- We can't return "true" because we didn't find a verifiable path
-- So we return "!?" - honest about uncertainty
-
-## Conclusion
-
-The wall problems expose a limitation of our Ford-Fulkerson approach:
-- We only try one path s→r per red vertex
-- If that path blocks r→t, we miss valid solutions
-- This is why we return "!?" - we can't verify correctness
-
-This is acceptable because:
-1. The problem is NP-hard - perfect correctness is impossible with polynomial-time
-2. The approach is honest about uncertainty
-3. We still solve 83% of instances with verified results
-
+Given that the problem is NP-hard, we can't guarantee perfect correctness with a polynomial-time algorithm anyway. Returning "!?" when we're uncertain is better than returning a potentially incorrect answer.
